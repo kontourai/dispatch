@@ -113,3 +113,19 @@ const model = createAiSdkDispatchModel({
 
 The host still owns candidate configuration and receipt persistence. Relay
 v0.2 buffers this model's compatibility stream; it is not live token streaming.
+
+### Receipt delivery failures
+
+`onReceipt` runs only after Dispatch has reached a terminal model outcome. Its
+failure is therefore not an invocation failure. The default fail-closed policy
+throws a non-retryable `ReceiptDeliveryError` containing the terminal receipt
+and, after success, the already-produced model result. Its
+`duplicateInvocationRisk` flag is `true` in that case so framework hosts do not
+blindly repeat a paid invocation.
+
+Hosts that can tolerate delayed receipt persistence may set
+`receiptDeliveryFailureMode: "best-effort"` and observe the same typed error via
+`onReceiptDeliveryFailure`. This returns a successful model result—or preserves
+the original terminal Dispatch failure—without allowing receipt loss to become
+invisible. Callback error text is never copied into the portable error or
+receipt.
