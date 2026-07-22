@@ -56,7 +56,7 @@ export interface DispatchAttemptReceipt {
   retryable?: boolean;
 }
 
-export type DispatchTerminalOutcome = "succeeded" | "exhausted" | "budget-exceeded" | "no-eligible-candidates";
+export type DispatchTerminalOutcome = "succeeded" | "aborted" | "exhausted" | "budget-exceeded" | "no-eligible-candidates";
 
 export interface DispatchReceipt {
   schemaVersion: 1;
@@ -88,4 +88,5 @@ export interface RuntimeRegistry {
 
 export interface DispatchOptions {
   now?: () => number;
+  signal?: AbortSignal;
 }

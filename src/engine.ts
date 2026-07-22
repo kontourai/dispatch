@@ -32,9 +32,11 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
   const now = options.now ?? (() => performance.now());
   const started = now();
   const attempts: DispatchAttemptReceipt[] = [];
+  if (options.signal?.aborted) return { receipt: terminalReceipt(plan, attempts, "aborted", 0) as DispatchOutcome["receipt"] } as DispatchOutcome;
   if (candidates.length === 0) return { receipt: terminalReceipt(plan, attempts, "no-eligible-candidates", 0) as DispatchOutcome["receipt"] } as DispatchOutcome;
 
   for (const candidate of candidates.slice(0, plan.budget.maxAttempts)) {
+    if (options.signal?.aborted) return { receipt: terminalReceipt(plan, attempts, "aborted", Math.max(0, now() - started)) as DispatchOutcome["receipt"] } as DispatchOutcome;
     const elapsedBefore = Math.max(0, now() - started);
     const tokensBefore = attempts.reduce((sum, attempt) => sum + (attempt.totalTokens ?? 0), 0);
     const costBefore = attempts.reduce((sum, attempt) => sum + (attempt.estimatedCostUsd ?? 0), 0);
@@ -51,7 +53,7 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
       continue;
     }
     try {
-      const result = await runtime.invoke(plan.request);
+      const result = await runtime.invoke(plan.request, options.signal ? { signal: options.signal } : undefined);
       const totalTokens = result.usage.totalTokens ?? (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
       const estimatedCostUsd = candidate.estimatedUsdPer1kTokens === undefined ? undefined : totalTokens * candidate.estimatedUsdPer1kTokens / 1000;
       attempts.push(Object.freeze({
@@ -74,6 +76,7 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
     } catch (error) {
       const typed = error instanceof ModelInvocationError ? error : new ModelInvocationError("RUNTIME_FAILURE", "Model invocation failed", false);
       attempts.push(Object.freeze({ candidateId: candidate.id, runtimeId: candidate.runtimeId, outcome: "failed", elapsedMs: Math.max(0, now() - attemptStarted), errorCode: typed.code, retryable: typed.retryable }));
+      if (typed.code === "ABORTED") return { receipt: terminalReceipt(plan, attempts, "aborted", Math.max(0, now() - started)) as DispatchOutcome["receipt"] } as DispatchOutcome;
       if (!typed.retryable && !plan.policy?.retryRuntimeFailures) break;
     }
   }

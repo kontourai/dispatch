@@ -80,3 +80,11 @@ that do not already carry explicit evidence. The optional `/bearing` entrypoint
 projects a Bearing ranked candidate into Dispatch's smaller `confirmed`,
 `declared`, or `unavailable` routing input. Bearing remains the authority for the
 underlying observations; Dispatch only consumes the projection.
+
+## Relay runtime facade
+
+`createDispatchRuntime()` exposes a configured Dispatch policy as a Relay
+`ModelRuntime`. Domain libraries can depend only on Relay while their host opts
+into Dispatch routing and receives each terminal receipt through `onReceipt`.
+This is the composition path for workflow hosts and domain adapters; it does not
+move their prompts, schemas, or interpretation into Dispatch.
