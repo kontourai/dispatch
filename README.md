@@ -45,6 +45,13 @@ Receipts include digests and measured outcomes, not prompt content or credential
 values. Budget overruns discovered from measured usage are terminal and suppress
 the model result while preserving the attempt in the receipt.
 
+When `requiredCapabilities` contains `structured-tools`, routing defaults to
+native structured-output fidelity. Candidate evidence must declare
+`structuredToolsFidelity: "native"`; missing or contradictory fidelity fails
+closed. A host may explicitly set `minimumStructuredToolsFidelity: "prompted"`
+to admit a runtime that produces schema-shaped output through prompting rather
+than native enforcement. Attempt receipts record the selected fidelity.
+
 ## Optional Datum binding
 
 The `/datum` entrypoint maps Datum's non-materializing `resolveRef()` output to

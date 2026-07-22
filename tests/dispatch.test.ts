@@ -65,4 +65,54 @@ describe("dispatch", () => {
     assert.equal(outcome.receipt.outcome, "aborted");
     assert.deepEqual(outcome.receipt.attempts, []);
   });
+
+  it("defaults structured-tool work to native fidelity and skips prompted candidates", async () => {
+    const plan: ExecutionPlan = {
+      ...basePlan,
+      candidates: [
+        { id: "prompted", runtimeId: "prompted", evidence: { level: "confirmed", capabilities: ["structured-tools"], structuredToolsFidelity: "prompted" } },
+        { id: "native", runtimeId: "native", evidence: { level: "confirmed", capabilities: ["structured-tools"], structuredToolsFidelity: "native" } },
+      ],
+      policy: { requiredCapabilities: ["structured-tools"], minimumEvidence: "confirmed" },
+    };
+    const outcome = await dispatch(plan, registry({
+      prompted: new FakeModelRuntime([success]),
+      native: new FakeModelRuntime([success]),
+    }));
+    assert.equal(outcome.receipt.outcome, "succeeded");
+    assert.deepEqual(outcome.receipt.attempts.map(({ candidateId, structuredToolsFidelity }) => [candidateId, structuredToolsFidelity]), [["native", "native"]]);
+  });
+
+  it("selects prompted structured output only when policy explicitly permits it", async () => {
+    const plan: ExecutionPlan = {
+      ...basePlan,
+      candidates: [{
+        id: "prompted",
+        runtimeId: "prompted",
+        evidence: { level: "confirmed", capabilities: ["structured-tools"], structuredToolsFidelity: "prompted" },
+      }],
+      policy: {
+        requiredCapabilities: ["structured-tools"],
+        minimumEvidence: "confirmed",
+        minimumStructuredToolsFidelity: "prompted",
+      },
+    };
+    const outcome = await dispatch(plan, registry({ prompted: new FakeModelRuntime([success]) }));
+    assert.equal(outcome.receipt.outcome, "succeeded");
+    assert.equal(outcome.receipt.attempts[0]?.structuredToolsFidelity, "prompted");
+  });
+
+  it("fails closed on contradictory structured-tool evidence", async () => {
+    const plan: ExecutionPlan = {
+      ...basePlan,
+      candidates: [{
+        id: "contradictory",
+        runtimeId: "contradictory",
+        evidence: { level: "confirmed", capabilities: ["structured-tools"], structuredToolsFidelity: "unavailable" },
+      }],
+      policy: { requiredCapabilities: ["structured-tools"], minimumEvidence: "confirmed" },
+    };
+    const outcome = await dispatch(plan, registry({ contradictory: new FakeModelRuntime([success]) }));
+    assert.equal(outcome.receipt.outcome, "no-eligible-candidates");
+  });
 });
