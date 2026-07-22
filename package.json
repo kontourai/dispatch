@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
+  "bin": {
+    "dispatch": "bin/dispatch.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
@@ -19,6 +22,7 @@
   },
   "files": [
     "dist/",
+    "bin/",
     "README.md",
     "CONTEXT.md",
     "LICENSE"
