@@ -44,3 +44,17 @@ console.log(outcome.receipt);
 Receipts include digests and measured outcomes, not prompt content or credential
 values. Budget overruns discovered from measured usage are terminal and suppress
 the model result while preserving the attempt in the receipt.
+
+## Optional Datum binding
+
+The `/datum` entrypoint maps Datum's non-materializing `resolveRef()` output to
+a candidate plus host-facing runtime target. It accepts auth references and
+availability only—never credential values—and does not create or invoke a model
+runtime.
+
+```ts
+import { resolveRef } from "@kontourai/datum";
+import { bindDatumResolvedRef } from "@kontourai/dispatch/datum";
+
+const binding = bindDatumResolvedRef("structured-worker", resolveRef("structured-worker"));
+```
