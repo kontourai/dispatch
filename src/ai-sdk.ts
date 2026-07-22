@@ -1,7 +1,7 @@
 import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { createAiSdkModel, createAiSdkRuntime } from "@kontourai/relay/ai-sdk";
 import { ModelInvocationError, type ModelInvocationRequest, type ModelRuntimeCapabilities } from "@kontourai/relay";
-import { createDispatchRuntime } from "./runtime.js";
+import { createDispatchRuntime, type ReceiptDeliveryError, type ReceiptDeliveryFailureMode } from "./runtime.js";
 import type { DispatchReceipt } from "./types.js";
 import type { DispatchRuntimePlan } from "./runtime.js";
 
@@ -13,6 +13,8 @@ export interface AiSdkDispatchModelOptions {
   provider?: string;
   modelId?: string;
   onReceipt?: (receipt: DispatchReceipt) => void | Promise<void>;
+  receiptDeliveryFailureMode?: ReceiptDeliveryFailureMode;
+  onReceiptDeliveryFailure?: (error: ReceiptDeliveryError) => void | Promise<void>;
 }
 
 /** Compose AI SDK provider models through Dispatch and return one AI SDK v3 model. */
@@ -30,6 +32,8 @@ export function createAiSdkDispatchModel(options: AiSdkDispatchModelOptions): La
     plan: resolvePlan,
     runtimes,
     ...(options.onReceipt ? { onReceipt: options.onReceipt } : {}),
+    ...(options.receiptDeliveryFailureMode ? { receiptDeliveryFailureMode: options.receiptDeliveryFailureMode } : {}),
+    ...(options.onReceiptDeliveryFailure ? { onReceiptDeliveryFailure: options.onReceiptDeliveryFailure } : {}),
   });
   return createAiSdkModel({ runtime, ...(options.provider ? { provider: options.provider } : {}), ...(options.modelId ? { modelId: options.modelId } : {}) });
 }
