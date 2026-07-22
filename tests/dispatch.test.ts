@@ -57,4 +57,12 @@ describe("dispatch", () => {
     assert.equal(outcome.receipt.totalTokens, 5);
     assert.equal("result" in outcome, false);
   });
+
+  it("reports cancellation as a distinct terminal outcome", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const outcome = await dispatch(basePlan, registry({ primary: new FakeModelRuntime([success]) }), { signal: controller.signal });
+    assert.equal(outcome.receipt.outcome, "aborted");
+    assert.deepEqual(outcome.receipt.attempts, []);
+  });
 });
