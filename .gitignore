@@ -1,0 +1,14 @@
+dist/
+node_modules/
+*.tgz
+.DS_Store
+.kontourai/veritas/evidence/
+.kontourai/veritas/claims/
+.kontourai/veritas/runs/
+.kontourai/veritas/standards-feedback-drafts/
+.kontourai/veritas/standards-feedback/
+.kontourai/veritas/repo-conformance/
+.kontourai/veritas/surface/
+.surface/runs/
+
+.kontourai/
