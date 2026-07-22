@@ -88,3 +88,21 @@ underlying observations; Dispatch only consumes the projection.
 into Dispatch routing and receives each terminal receipt through `onReceipt`.
 This is the composition path for workflow hosts and domain adapters; it does not
 move their prompts, schemas, or interpretation into Dispatch.
+
+Framework hosts using the AI SDK v3 model contract can compose their provider
+models through the optional `/ai-sdk` entrypoint:
+
+```ts
+import { createAiSdkDispatchModel } from "@kontourai/dispatch/ai-sdk";
+
+const model = createAiSdkDispatchModel({
+  id: "dispatch:host",
+  capabilities: { structuredTools: true, streaming: false, abort: true, usage: true },
+  models: { primary, fallback },
+  plan,
+  onReceipt,
+});
+```
+
+The host still owns candidate configuration and receipt persistence. Relay
+v0.2 buffers this model's compatibility stream; it is not live token streaming.
