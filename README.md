@@ -58,3 +58,17 @@ import { bindDatumResolvedRef } from "@kontourai/dispatch/datum";
 
 const binding = bindDatumResolvedRef("structured-worker", resolveRef("structured-worker"));
 ```
+
+## Credential-free CLI
+
+Use fixture runtimes or Relay replay records to test complete routing and receipt
+behavior without a provider account:
+
+```bash
+dispatch fixture --plan plan.json --fixtures fixtures.json
+dispatch replay --plan plan.json --records records.json
+```
+
+The CLI emits `dispatch.cli.result/v1` JSON and exits `2` for a valid run with a
+non-success terminal outcome. Live runtime construction remains an application
+responsibility rather than a hidden CLI configuration path.
