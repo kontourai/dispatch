@@ -1,15 +1,36 @@
 import { ModelInvocationError } from "@kontourai/relay";
 import { executionPlanDigest, invocationDigest } from "./canonical.js";
-import type { DispatchAttemptReceipt, DispatchOptions, DispatchOutcome, DispatchReceipt, EvidenceLevel, ExecutionCandidate, ExecutionPlan, RuntimeRegistry } from "./types.js";
+import type { DispatchAttemptReceipt, DispatchOptions, DispatchOutcome, DispatchReceipt, EvidenceLevel, ExecutionCandidate, ExecutionPlan, RuntimeRegistry, StructuredToolsFidelity } from "./types.js";
 
 const evidenceRank: Record<EvidenceLevel, number> = { unavailable: 0, declared: 1, confirmed: 2 };
+const fidelityRank: Record<StructuredToolsFidelity, number> = { unavailable: 0, prompted: 1, native: 2 };
 
 function eligible(candidate: ExecutionCandidate, plan: ExecutionPlan): boolean {
   const required = plan.policy?.requiredCapabilities ?? [];
   const evidence = candidate.evidence ?? { level: "unavailable" as const, capabilities: [] };
   const minimum = plan.policy?.minimumEvidence ?? "unavailable";
+  const requiresStructuredTools = required.includes("structured-tools");
+  const minimumFidelity = plan.policy?.minimumStructuredToolsFidelity
+    ?? (requiresStructuredTools ? "native" : undefined);
+  const fidelity = evidence.structuredToolsFidelity ?? "unavailable";
+  const fidelityIsKnown = fidelity === "unavailable" || fidelity === "prompted" || fidelity === "native";
+  const fidelityIsConsistent = evidence.capabilities.includes("structured-tools")
+    ? fidelity === "prompted" || fidelity === "native"
+    : fidelity === "unavailable";
   return evidenceRank[evidence.level] >= evidenceRank[minimum]
-    && required.every((capability) => evidence.capabilities.includes(capability));
+    && required.every((capability) => evidence.capabilities.includes(capability))
+    && fidelityIsKnown
+    && fidelityIsConsistent
+    && (minimumFidelity === undefined || fidelityRank[fidelity] >= fidelityRank[minimumFidelity]);
+}
+
+function attemptIdentity(candidate: ExecutionCandidate) {
+  const fidelity = candidate.evidence?.structuredToolsFidelity;
+  return {
+    candidateId: candidate.id,
+    runtimeId: candidate.runtimeId,
+    ...(fidelity === undefined ? {} : { structuredToolsFidelity: fidelity }),
+  };
 }
 
 function terminalReceipt(plan: ExecutionPlan, attempts: readonly DispatchAttemptReceipt[], outcome: DispatchReceipt["outcome"], elapsed: number): DispatchReceipt {
@@ -49,7 +70,7 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
     const runtime = runtimes.get(candidate.runtimeId);
     const attemptStarted = now();
     if (!runtime) {
-      attempts.push(Object.freeze({ candidateId: candidate.id, runtimeId: candidate.runtimeId, outcome: "failed", elapsedMs: 0, errorCode: "RUNTIME_NOT_FOUND", retryable: true }));
+      attempts.push(Object.freeze({ ...attemptIdentity(candidate), outcome: "failed", elapsedMs: 0, errorCode: "RUNTIME_NOT_FOUND", retryable: true }));
       continue;
     }
     try {
@@ -57,7 +78,7 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
       const totalTokens = result.usage.totalTokens ?? (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
       const estimatedCostUsd = candidate.estimatedUsdPer1kTokens === undefined ? undefined : totalTokens * candidate.estimatedUsdPer1kTokens / 1000;
       attempts.push(Object.freeze({
-        candidateId: candidate.id, runtimeId: candidate.runtimeId, outcome: "succeeded", elapsedMs: Math.max(0, now() - attemptStarted),
+        ...attemptIdentity(candidate), outcome: "succeeded", elapsedMs: Math.max(0, now() - attemptStarted),
         ...(result.usage.inputTokens === undefined ? {} : { inputTokens: result.usage.inputTokens }),
         ...(result.usage.outputTokens === undefined ? {} : { outputTokens: result.usage.outputTokens }),
         totalTokens,
@@ -75,7 +96,7 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
       return { result, receipt };
     } catch (error) {
       const typed = error instanceof ModelInvocationError ? error : new ModelInvocationError("RUNTIME_FAILURE", "Model invocation failed", false);
-      attempts.push(Object.freeze({ candidateId: candidate.id, runtimeId: candidate.runtimeId, outcome: "failed", elapsedMs: Math.max(0, now() - attemptStarted), errorCode: typed.code, retryable: typed.retryable }));
+      attempts.push(Object.freeze({ ...attemptIdentity(candidate), outcome: "failed", elapsedMs: Math.max(0, now() - attemptStarted), errorCode: typed.code, retryable: typed.retryable }));
       if (typed.code === "ABORTED") return { receipt: terminalReceipt(plan, attempts, "aborted", Math.max(0, now() - started)) as DispatchOutcome["receipt"] } as DispatchOutcome;
       if (!typed.retryable && !plan.policy?.retryRuntimeFailures) break;
     }

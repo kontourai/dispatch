@@ -1,10 +1,12 @@
 import type { ModelInvocationRequest, ModelInvocationResult, ModelRuntime } from "@kontourai/relay";
 
 export type EvidenceLevel = "unavailable" | "declared" | "confirmed";
+export type StructuredToolsFidelity = "unavailable" | "prompted" | "native";
 
 export interface CapabilityEvidence {
   level: EvidenceLevel;
   capabilities: readonly string[];
+  structuredToolsFidelity?: StructuredToolsFidelity;
   source?: string;
 }
 
@@ -29,6 +31,8 @@ export interface ExecutionBudget {
 export interface ExecutionPolicy {
   requiredCapabilities?: readonly string[];
   minimumEvidence?: EvidenceLevel;
+  /** Defaults to native when `structured-tools` is required. */
+  minimumStructuredToolsFidelity?: Exclude<StructuredToolsFidelity, "unavailable">;
   retryRuntimeFailures?: boolean;
 }
 
@@ -47,6 +51,7 @@ export interface DispatchAttemptReceipt {
   candidateId: string;
   runtimeId: string;
   outcome: AttemptOutcome;
+  structuredToolsFidelity?: StructuredToolsFidelity;
   elapsedMs: number;
   inputTokens?: number;
   outputTokens?: number;
