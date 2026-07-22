@@ -72,3 +72,11 @@ dispatch replay --plan plan.json --records records.json
 The CLI emits `dispatch.cli.result/v1` JSON and exits `2` for a valid run with a
 non-success terminal outcome. Live runtime construction remains an application
 responsibility rather than a hidden CLI configuration path.
+
+## Optional capability evidence
+
+`withCapabilityEvidence()` accepts any evidence source and enriches candidates
+that do not already carry explicit evidence. The optional `/bearing` entrypoint
+projects a Bearing ranked candidate into Dispatch's smaller `confirmed`,
+`declared`, or `unavailable` routing input. Bearing remains the authority for the
+underlying observations; Dispatch only consumes the projection.

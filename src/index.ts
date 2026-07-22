@@ -1,7 +1,8 @@
 export { executionPlanDigest } from "./canonical.js";
 export { dispatch } from "./engine.js";
+export { withCapabilityEvidence } from "./evidence.js";
 export type {
-  AttemptOutcome, CapabilityEvidence, DispatchAttemptReceipt, DispatchFailure,
+  AttemptOutcome, CapabilityEvidence, CapabilityEvidenceSource, DispatchAttemptReceipt, DispatchFailure,
   DispatchOptions, DispatchOutcome, DispatchReceipt, DispatchSuccess,
   DispatchTerminalOutcome, EvidenceLevel, ExecutionBudget, ExecutionCandidate,
   ExecutionPlan, ExecutionPolicy, RuntimeRegistry,
