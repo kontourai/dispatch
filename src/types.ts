@@ -8,6 +8,10 @@ export interface CapabilityEvidence {
   source?: string;
 }
 
+export interface CapabilityEvidenceSource {
+  evidenceFor(candidate: ExecutionCandidate): Promise<CapabilityEvidence | undefined>;
+}
+
 export interface ExecutionCandidate {
   id: string;
   runtimeId: string;
