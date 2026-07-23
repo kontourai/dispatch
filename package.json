@@ -78,6 +78,6 @@
     "url": "git+https://github.com/kontourai/dispatch.git"
   },
   "dependencies": {
-    "@kontourai/relay": "^0.2.0"
+    "@kontourai/relay": "^0.5.0"
   }
 }

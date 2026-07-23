@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
 import { FakeModelRuntime, type ModelRuntimeCapabilities } from "@kontourai/relay";
 import { createDispatchRuntime, DispatchRuntimeError, ReceiptDeliveryError, type DispatchReceipt } from "../src/index.js";
@@ -7,6 +8,24 @@ const capabilities: ModelRuntimeCapabilities = { structuredTools: true, streamin
 const result = { provider: "fixture", model: "m", outputText: "ok", toolCalls: [], usage: { totalTokens: 2 }, latencyMs: 0 };
 
 describe("Dispatch Relay runtime", () => {
+  it("installs one Relay contract compatible with Dispatch runtime fidelity", () => {
+    const installed = JSON.parse(execFileSync("npm", ["ls", "@kontourai/relay", "--json"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    })) as { dependencies?: Record<string, { version?: string; dependencies?: Record<string, unknown> }> };
+    const direct = installed.dependencies?.["@kontourai/relay"];
+    assert.equal(direct?.version, "0.5.0");
+    assert.equal(direct?.dependencies?.["@kontourai/relay"], undefined);
+    const capabilities: ModelRuntimeCapabilities = {
+      structuredTools: true,
+      structuredToolsFidelity: "native",
+      outputTokenLimitFidelity: "native",
+      streaming: false,
+      abort: true,
+      usage: true,
+    };
+    assert.equal(capabilities.structuredToolsFidelity, "native");
+  });
   it("routes a Relay invocation and emits the receipt to the host", async () => {
     let receipt: DispatchReceipt | undefined;
     const runtime = createDispatchRuntime({
