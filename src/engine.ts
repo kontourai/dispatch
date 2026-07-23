@@ -4,6 +4,14 @@ import type { DispatchAttemptReceipt, DispatchOptions, DispatchOutcome, Dispatch
 
 const evidenceRank: Record<EvidenceLevel, number> = { unavailable: 0, declared: 1, confirmed: 2 };
 const fidelityRank: Record<StructuredToolsFidelity, number> = { unavailable: 0, prompted: 1, native: 2 };
+const invocationErrorCodes = new Set([
+  "ABORTED",
+  "AUTHENTICATION_FAILED",
+  "INVALID_REQUEST",
+  "PROVIDER_UNAVAILABLE",
+  "RATE_LIMITED",
+  "RUNTIME_FAILURE",
+]);
 
 function eligible(candidate: ExecutionCandidate, plan: ExecutionPlan): boolean {
   const required = plan.policy?.requiredCapabilities ?? [];
@@ -95,11 +103,28 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
       const receipt = terminalReceipt(plan, attempts, "succeeded", elapsedAfter) as DispatchReceipt & { outcome: "succeeded" };
       return { result, receipt };
     } catch (error) {
-      const typed = error instanceof ModelInvocationError ? error : new ModelInvocationError("RUNTIME_FAILURE", "Model invocation failed", false);
+      const typed = normalizeInvocationError(error);
       attempts.push(Object.freeze({ ...attemptIdentity(candidate), outcome: "failed", elapsedMs: Math.max(0, now() - attemptStarted), errorCode: typed.code, retryable: typed.retryable }));
       if (typed.code === "ABORTED") return { receipt: terminalReceipt(plan, attempts, "aborted", Math.max(0, now() - started)) as DispatchOutcome["receipt"] } as DispatchOutcome;
       if (!typed.retryable && !plan.policy?.retryRuntimeFailures) break;
     }
   }
   return { receipt: terminalReceipt(plan, attempts, "exhausted", Math.max(0, now() - started)) as DispatchOutcome["receipt"] } as DispatchOutcome;
+}
+
+function normalizeInvocationError(error: unknown): ModelInvocationError {
+  if (error instanceof ModelInvocationError) return error;
+  if (error && typeof error === "object") {
+    const candidate = error as { code?: unknown; retryable?: unknown };
+    if (typeof candidate.code === "string"
+      && invocationErrorCodes.has(candidate.code)
+      && typeof candidate.retryable === "boolean") {
+      return new ModelInvocationError(
+        candidate.code as ModelInvocationError["code"],
+        "Model invocation failed",
+        candidate.retryable,
+      );
+    }
+  }
+  return new ModelInvocationError("RUNTIME_FAILURE", "Model invocation failed", false);
 }

@@ -42,6 +42,35 @@ describe("dispatch", () => {
     assert.deepEqual(outcome.receipt.attempts.map(({ candidateId, outcome }) => [candidateId, outcome]), [["first", "failed"], ["second", "succeeded"]]);
   });
 
+  it("preserves typed Relay failure shape across an isolated package copy", async () => {
+    const foreignRuntime: ModelRuntime = {
+      id: "foreign",
+      capabilities: () => ({ structuredTools: true, streaming: false, abort: true, usage: true }),
+      async invoke() {
+        throw Object.assign(new Error("foreign Relay copy"), {
+          name: "ModelInvocationError",
+          code: "RATE_LIMITED",
+          retryable: true,
+        });
+      },
+    };
+    const fallback = new FakeModelRuntime([success], "fallback");
+    const outcome = await dispatch({
+      ...basePlan,
+      candidates: [
+        { id: "foreign", runtimeId: "foreign", evidence: { level: "confirmed", capabilities: ["tools"] } },
+        { id: "fallback", runtimeId: "fallback", evidence: { level: "confirmed", capabilities: ["tools"] } },
+      ],
+      budget: { maxAttempts: 2 },
+    }, {
+      get: (id) => id === "foreign" ? foreignRuntime : id === "fallback" ? fallback : undefined,
+    });
+    assert.equal(outcome.receipt.outcome, "succeeded");
+    assert.equal(outcome.receipt.attempts[0]!.errorCode, "RATE_LIMITED");
+    assert.equal(outcome.receipt.attempts[0]!.retryable, true);
+    assert.equal(outcome.receipt.attempts[1]!.outcome, "succeeded");
+  });
+
   it("rejects candidates below the evidence threshold", async () => {
     const plan = { ...basePlan, candidates: [{ id: "declared", runtimeId: "x", evidence: { level: "declared" as const, capabilities: ["tools"] } }] };
     const outcome = await dispatch(plan, registry({}));
