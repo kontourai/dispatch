@@ -1,6 +1,6 @@
 {
   "name": "@kontourai/dispatch",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Policy-aware model execution with portable routing, budgets, fallbacks, and receipts",
   "type": "module",
   "license": "Apache-2.0",
