@@ -45,6 +45,61 @@ Receipts include digests and measured outcomes, not prompt content or credential
 values. Budget overruns discovered from measured usage are terminal and suppress
 the model result while preserving the attempt in the receipt.
 
+## Durable execution authorization
+
+Per-invocation budgets are measured from one Dispatch call. Hosts that need a
+hard ceiling shared by concurrent calls or preserved across process restarts can
+add an `authorization` to the execution plan and provide an
+`AuthorizationLedger`.
+
+```ts
+import { FileAuthorizationLedger, dispatch } from "@kontourai/dispatch";
+
+const ledger = new FileAuthorizationLedger({
+  root: "/application-owned/private/dispatch-authorizations",
+});
+
+const outcome = await dispatch({
+  schemaVersion: 1,
+  role: "structured-worker",
+  request,
+  candidates: [{
+    id: "primary",
+    runtimeId: runtime.id,
+    worstCaseUsage: { maxTokens: 2_000, maxCostUsd: 0.20 },
+  }],
+  budget: { maxAttempts: 1, maxTotalTokens: 2_000, maxCostUsd: 0.20 },
+  authorization: {
+    schemaVersion: 1,
+    id: "authorized-run-2026-07-23",
+    invocationId: "document-17-chunk-4",
+    limits: { maxAttempts: 20, maxTotalTokens: 40_000, maxCostUsd: 4 },
+  },
+}, { get: (id) => id === runtime.id ? runtime : undefined }, {
+  authorizationLedger: ledger,
+});
+```
+
+The file ledger serializes reservations across processes, stores bounded
+schema-versioned and integrity-checked records in mode-0600 files, and never
+stores requests, responses, credentials, or raw diagnostics. It reserves each
+candidate's declared worst case before invocation and settles successful
+attempts afterward. Failed, aborted-after-launch, interrupted, and otherwise
+uncertain attempts remain conservatively reserved across restarts.
+
+Replaying an existing reservation is refused because the prior provider call
+may already have happened. A host may release that capacity only after explicit
+reconciliation through `ledger.release(...)`; the release reason is a bounded
+enum and remains in the audit record. An orphaned lock fails closed after the
+configured timeout and requires operator inspection rather than unsafe automatic
+lock stealing.
+
+Authorization persistence errors are typed
+`AuthorizationPersistenceError`s. `duplicateInvocationRisk` is true when a
+provider may already have completed or an existing reservation makes replay
+ambiguous. Capacity exhaustion remains a content-free
+`budget-exceeded` Dispatch receipt with authorization outcome `exhausted`.
+
 When `requiredCapabilities` contains `structured-tools`, routing defaults to
 native structured-output fidelity. Candidate evidence must declare
 `structuredToolsFidelity: "native"`; missing or contradictory fidelity fails
@@ -79,6 +134,8 @@ dispatch replay --plan plan.json --records records.json
 The CLI emits `dispatch.cli.result/v1` JSON and exits `2` for a valid run with a
 non-success terminal outcome. Live runtime construction remains an application
 responsibility rather than a hidden CLI configuration path.
+Credential-free authorization fixtures may add
+`--authorization-root <application-owned-private-directory>`.
 
 ## Optional capability evidence
 

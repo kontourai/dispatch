@@ -1,17 +1,26 @@
 import { readFile } from "node:fs/promises";
 import { FakeModelRuntime, ReplayModelRuntime, type InvocationReplayRecord, type ModelInvocationResult, type ModelRuntime } from "@kontourai/relay";
+import { FileAuthorizationLedger } from "./authorization.js";
 import { dispatch } from "./engine.js";
 import type { ExecutionPlan, RuntimeRegistry } from "./types.js";
 
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
 
 function usage(): never {
-  throw new Error("Usage: dispatch <fixture|replay> --plan <file> (--fixtures <file>|--records <file>)");
+  throw new Error("Usage: dispatch <fixture|replay> --plan <file> (--fixtures <file>|--records <file>) [--authorization-root <dir>]");
 }
 
 function option(name: string, args: readonly string[]): string {
   const index = args.indexOf(name);
   const value = index < 0 ? undefined : args[index + 1];
+  if (!value || value.startsWith("--")) usage();
+  return value;
+}
+
+function optionalOption(name: string, args: readonly string[]): string | undefined {
+  const index = args.indexOf(name);
+  if (index < 0) return undefined;
+  const value = args[index + 1];
   if (!value || value.startsWith("--")) usage();
   return value;
 }
@@ -40,7 +49,10 @@ async function main(args = process.argv.slice(2)): Promise<void> {
     const replay = new ReplayModelRuntime(records);
     runtimes = { get: () => replay };
   }
-  const outcome = await dispatch(plan, runtimes);
+  const authorizationRoot = optionalOption("--authorization-root", args);
+  const outcome = await dispatch(plan, runtimes, {
+    ...(authorizationRoot ? { authorizationLedger: new FileAuthorizationLedger({ root: authorizationRoot }) } : {}),
+  });
   process.stdout.write(`${JSON.stringify({ schemaVersion: "dispatch.cli.result/v1", ...outcome }, null, 2)}\n`);
   if (outcome.receipt.outcome !== "succeeded") process.exitCode = 2;
 }

@@ -1,6 +1,6 @@
 import { ModelInvocationError, type ModelInvocationOptions, type ModelInvocationRequest, type ModelInvocationResult, type ModelRuntime, type ModelRuntimeCapabilities } from "@kontourai/relay";
 import { dispatch } from "./engine.js";
-import type { DispatchReceipt, ExecutionPlan, RuntimeRegistry } from "./types.js";
+import type { AuthorizationLedger, DispatchReceipt, ExecutionPlan, RuntimeRegistry } from "./types.js";
 
 export type DispatchRuntimePlan = Omit<ExecutionPlan, "request">;
 export type ReceiptDeliveryFailureMode = "fail-closed" | "best-effort";
@@ -10,6 +10,7 @@ export interface DispatchRuntimeOptions {
   capabilities: ModelRuntimeCapabilities;
   plan: DispatchRuntimePlan | ((request: ModelInvocationRequest) => DispatchRuntimePlan | Promise<DispatchRuntimePlan>);
   runtimes: RuntimeRegistry;
+  authorizationLedger?: AuthorizationLedger;
   onReceipt?: (receipt: DispatchReceipt) => void | Promise<void>;
   /** Defaults to fail-closed so successful execution cannot silently lose its receipt. */
   receiptDeliveryFailureMode?: ReceiptDeliveryFailureMode;
@@ -49,7 +50,14 @@ export function createDispatchRuntime(options: DispatchRuntimeOptions): ModelRun
     capabilities: () => options.capabilities,
     async invoke(request: ModelInvocationRequest, invocationOptions?: ModelInvocationOptions): Promise<ModelInvocationResult> {
       const template = typeof options.plan === "function" ? await options.plan(request) : options.plan;
-      const outcome = await dispatch({ ...template, request }, options.runtimes, invocationOptions?.signal ? { signal: invocationOptions.signal } : {});
+      const outcome = await dispatch(
+        { ...template, request },
+        options.runtimes,
+        {
+          ...(invocationOptions?.signal ? { signal: invocationOptions.signal } : {}),
+          ...(options.authorizationLedger ? { authorizationLedger: options.authorizationLedger } : {}),
+        },
+      );
       try {
         await options.onReceipt?.(outcome.receipt);
       } catch {

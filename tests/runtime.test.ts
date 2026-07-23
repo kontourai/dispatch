@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { FakeModelRuntime, type ModelRuntimeCapabilities } from "@kontourai/relay";
-import { createDispatchRuntime, DispatchRuntimeError, ReceiptDeliveryError, type DispatchReceipt } from "../src/index.js";
+import { createDispatchRuntime, DispatchRuntimeError, FileAuthorizationLedger, ReceiptDeliveryError, type DispatchReceipt } from "../src/index.js";
 
 const capabilities: ModelRuntimeCapabilities = { structuredTools: true, streaming: false, abort: true, usage: true };
 const result = { provider: "fixture", model: "m", outputText: "ok", toolCalls: [], usage: { totalTokens: 2 }, latencyMs: 0 };
@@ -36,6 +39,32 @@ describe("Dispatch Relay runtime", () => {
     });
     assert.deepEqual(await runtime.invoke({ messages: [{ role: "user", content: "work" }] }), result);
     assert.equal(receipt?.outcome, "succeeded");
+  });
+
+  it("forwards durable authorization through the Relay runtime facade", async () => {
+    const root = await mkdtemp(join(tmpdir(), "dispatch-runtime-authorization-"));
+    let receipt: DispatchReceipt | undefined;
+    const runtime = createDispatchRuntime({
+      id: "dispatch:authorized-worker",
+      capabilities,
+      plan: {
+        schemaVersion: 1,
+        role: "worker",
+        candidates: [{ id: "one", runtimeId: "one", worstCaseUsage: { maxTokens: 10 } }],
+        budget: { maxAttempts: 1, maxTotalTokens: 10 },
+        authorization: {
+          schemaVersion: 1,
+          id: "runtime-authorization",
+          invocationId: "runtime-invocation",
+          limits: { maxAttempts: 1, maxTotalTokens: 10 },
+        },
+      },
+      runtimes: { get: () => new FakeModelRuntime([result]) },
+      authorizationLedger: new FileAuthorizationLedger({ root }),
+      onReceipt: (value) => { receipt = value; },
+    });
+    assert.deepEqual(await runtime.invoke({ messages: [{ role: "user", content: "work" }] }), result);
+    assert.equal(receipt?.authorization?.outcome, "settled");
   });
 
   it("maps an aborted Dispatch outcome back to Relay's typed error", async () => {
