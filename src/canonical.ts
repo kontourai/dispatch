@@ -12,6 +12,7 @@ export function executionPlanDigest(plan: ExecutionPlan): string {
     candidates: plan.candidates,
     budget: plan.budget,
     policy: plan.policy,
+    authorization: plan.authorization,
   };
   return createHash("sha256").update(`dispatch:execution-plan:v1\0${canonicalJson(secretFreePlan)}`).digest("hex");
 }
