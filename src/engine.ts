@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { ModelInvocationError } from "@kontourai/relay";
+import {
+  ModelInvocationError,
+  type ModelBatchInvocationOutcome,
+  type ModelInvocationResult,
+} from "@kontourai/relay";
 import { AuthorizationExhaustedError, AuthorizationPersistenceError } from "./authorization.js";
 import { executionPlanDigest, invocationDigest } from "./canonical.js";
 import type { AuthorizationReservation, DispatchAttemptReceipt, DispatchOptions, DispatchOutcome, DispatchReceipt, EvidenceLevel, ExecutionCandidate, ExecutionPlan, RuntimeRegistry, StructuredToolsFidelity } from "./types.js";
@@ -50,6 +54,7 @@ function terminalReceipt(
   outcome: DispatchReceipt["outcome"],
   elapsed: number,
   authorizationOutcome?: "reserved" | "settled" | "exhausted",
+  physicalBatch?: DispatchReceipt["physicalBatch"],
 ): DispatchReceipt {
   return Object.freeze({
     schemaVersion: 1,
@@ -61,6 +66,7 @@ function terminalReceipt(
     totalElapsedMs: elapsed,
     totalTokens: attempts.reduce((sum, attempt) => sum + (attempt.totalTokens ?? 0), 0),
     estimatedCostUsd: attempts.reduce((sum, attempt) => sum + (attempt.estimatedCostUsd ?? 0), 0),
+    ...(physicalBatch ? { physicalBatch: Object.freeze({ ...physicalBatch }) } : {}),
     ...(plan.authorization && authorizationOutcome ? {
       authorization: Object.freeze({
         id: plan.authorization.id,
@@ -72,8 +78,7 @@ function terminalReceipt(
 }
 
 export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, options: DispatchOptions = {}): Promise<DispatchOutcome> {
-  if (plan.schemaVersion !== 1 || !plan.role || plan.budget.maxAttempts < 1) throw new TypeError("Invalid execution plan");
-  validateAuthorizationPlan(plan);
+  validatePlan(plan);
   const candidates = plan.candidates.filter((candidate) => eligible(candidate, plan));
   const now = options.now ?? (() => performance.now());
   const started = now();
@@ -196,6 +201,294 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
     }
   }
   return { receipt: terminalReceipt(plan, attempts, "exhausted", Math.max(0, now() - started), authorizationOutcome(attempts)) as DispatchOutcome["receipt"] } as DispatchOutcome;
+}
+
+/**
+ * Execute one provider-native physical batch for the first eligible candidate,
+ * then route item-local failures through the remaining explicit fallback plan.
+ * Every item that enters the physical operation is durably reserved first.
+ */
+export async function dispatchBatch(
+  plans: readonly ExecutionPlan[],
+  runtimes: RuntimeRegistry,
+  options: DispatchOptions = {},
+): Promise<readonly DispatchOutcome[]> {
+  if (plans.length === 0) throw new TypeError("Dispatch batch requires at least one execution plan");
+  for (const plan of plans) validatePlan(plan);
+  const now = options.now ?? (() => performance.now());
+  const started = now();
+  if (options.signal?.aborted) {
+    return plans.map((plan) => ({
+      receipt: terminalReceipt(plan, [], "aborted", 0) as DispatchOutcome["receipt"],
+    } as DispatchOutcome));
+  }
+
+  const selected = plans.map((plan) => plan.candidates.filter((candidate) => eligible(candidate, plan))[0]);
+  const outcomes: Array<DispatchOutcome | undefined> = new Array(plans.length);
+  for (let index = 0; index < plans.length; index++) {
+    if (!selected[index]) {
+      outcomes[index] = {
+        receipt: terminalReceipt(plans[index]!, [], "no-eligible-candidates", 0) as DispatchOutcome["receipt"],
+      } as DispatchOutcome;
+    }
+  }
+  const activeIndexes = plans.map((_, index) => index).filter((index) => selected[index] !== undefined);
+  if (activeIndexes.length === 0) return outcomes as DispatchOutcome[];
+  const firstActiveIndex = activeIndexes[0]!;
+  const runtimeId = selected[firstActiveIndex]!.runtimeId;
+  if (activeIndexes.some((index) => selected[index]!.runtimeId !== runtimeId)) {
+    throw new ModelInvocationError(
+      "INVALID_REQUEST",
+      "Dispatch physical batch requires one common primary runtime",
+      false,
+    );
+  }
+  const runtime = runtimes.get(runtimeId);
+  const capabilities = runtime?.capabilities();
+  if (!runtime || capabilities?.physicalBatch !== true || typeof runtime.invokeBatch !== "function"
+    || !Number.isInteger(capabilities.maxBatchSize) || capabilities.maxBatchSize! < activeIndexes.length) {
+    throw new ModelInvocationError(
+      "INVALID_REQUEST",
+      "Selected Dispatch runtime cannot preserve the requested physical batch",
+      false,
+    );
+  }
+
+  const reservations = new Map<number, AuthorizationReservation>();
+  const launchIndexes: number[] = [];
+  for (const index of activeIndexes) {
+    const plan = plans[index]!;
+    const candidate = selected[index]!;
+    const reservation = reservationFor(plan, candidate, 1);
+    if (reservation) {
+      if (!options.authorizationLedger) {
+        await releaseReservations(reservations, options.authorizationLedger);
+        throw new AuthorizationPersistenceError("Execution authorization requires an authorization ledger");
+      }
+      try {
+        const reserved = await options.authorizationLedger.reserve(reservation);
+        if (reserved.status !== "reserved") {
+          throw new AuthorizationPersistenceError(
+            "Authorization reservation already exists; automatic provider replay is refused",
+            undefined,
+            "recovery",
+          );
+        }
+        reservations.set(index, reservation);
+      } catch (error) {
+        if (error instanceof AuthorizationExhaustedError) {
+          outcomes[index] = {
+            receipt: terminalReceipt(plan, [], "budget-exceeded", Math.max(0, now() - started), "exhausted") as DispatchOutcome["receipt"],
+          } as DispatchOutcome;
+          continue;
+        }
+        await releaseReservations(reservations, options.authorizationLedger);
+        if (error instanceof AuthorizationPersistenceError) throw error;
+        throw new AuthorizationPersistenceError(undefined, error);
+      }
+    }
+    launchIndexes.push(index);
+  }
+  if (launchIndexes.length === 0) return outcomes as DispatchOutcome[];
+  if (options.signal?.aborted) {
+    await releaseReservations(reservations, options.authorizationLedger);
+    for (const index of launchIndexes) {
+      outcomes[index] = {
+        receipt: terminalReceipt(plans[index]!, [], "aborted", Math.max(0, now() - started)) as DispatchOutcome["receipt"],
+      } as DispatchOutcome;
+    }
+    return outcomes as DispatchOutcome[];
+  }
+
+  const physicalStarted = now();
+  let nativeOutcomes: readonly ModelBatchInvocationOutcome[];
+  try {
+    nativeOutcomes = await runtime.invokeBatch(
+      launchIndexes.map((index) => plans[index]!.request),
+      options.signal ? { signal: options.signal } : undefined,
+    );
+    if (!Array.isArray(nativeOutcomes) || nativeOutcomes.length !== launchIndexes.length) {
+      throw new ModelInvocationError(
+        "RUNTIME_FAILURE",
+        "Physical runtime returned an invalid batch outcome count",
+        false,
+      );
+    }
+  } catch (error) {
+    const typed = normalizeInvocationError(error);
+    nativeOutcomes = launchIndexes.map(() => ({
+      status: "rejected" as const,
+      reason: { code: typed.code, message: typed.message, retryable: typed.retryable },
+    }));
+  }
+  const physicalElapsed = Math.max(0, now() - physicalStarted);
+  const operationId = `batch_${createHash("sha256").update([
+    "dispatch:physical-batch:v1",
+    runtimeId,
+    ...launchIndexes.map((index) => invocationDigest(plans[index]!.request)),
+  ].join("\0")).digest("hex")}`;
+
+  await Promise.all(launchIndexes.map(async (index, nativeIndex) => {
+    const plan = plans[index]!;
+    const candidate = selected[index]!;
+    const reservation = reservations.get(index);
+    const native = nativeOutcomes[nativeIndex]!;
+    const physicalBatch = { operationId, itemIndex: nativeIndex, itemCount: launchIndexes.length };
+    if (native.status === "fulfilled") {
+      const attempt = successfulAttempt(candidate, native.value, physicalElapsed, reservation);
+      if (reservation) {
+        await settleReservation(options.authorizationLedger!, reservation, attempt);
+        attempt.reservationState = "settled";
+      }
+      if ((plan.budget.maxElapsedMs !== undefined && Math.max(0, now() - started) > plan.budget.maxElapsedMs)
+        || (plan.budget.maxTotalTokens !== undefined && (attempt.totalTokens ?? 0) > plan.budget.maxTotalTokens)
+        || (plan.budget.maxCostUsd !== undefined && (attempt.estimatedCostUsd ?? 0) > plan.budget.maxCostUsd)) {
+        outcomes[index] = {
+          receipt: terminalReceipt(
+            plan,
+            [Object.freeze(attempt)],
+            "budget-exceeded",
+            Math.max(0, now() - started),
+            authorizationOutcome([attempt]),
+            physicalBatch,
+          ) as DispatchOutcome["receipt"],
+        } as DispatchOutcome;
+        return;
+      }
+      const receipt = terminalReceipt(
+        plan,
+        [Object.freeze(attempt)],
+        "succeeded",
+        Math.max(0, now() - started),
+        authorizationOutcome([attempt]),
+        physicalBatch,
+      ) as DispatchReceipt & { outcome: "succeeded" };
+      outcomes[index] = { result: native.value, receipt };
+      return;
+    }
+
+    const typed = normalizeInvocationError(native.reason);
+    const primaryAttempt = Object.freeze({
+      ...attemptIdentity(candidate),
+      outcome: "failed" as const,
+      elapsedMs: physicalElapsed,
+      errorCode: typed.code,
+      retryable: typed.retryable,
+      ...(reservation ? { reservationId: reservation.reservationId, reservationState: "reserved" as const } : {}),
+    });
+    const fallbackCandidates = plan.candidates
+      .filter((candidate) => eligible(candidate, plan))
+      .slice(1);
+    const canFallback = fallbackCandidates.length > 0
+      && plan.budget.maxAttempts > 1
+      && typed.code !== "ABORTED"
+      && (typed.retryable || plan.policy?.retryRuntimeFailures === true);
+    if (!canFallback) {
+      const terminal = typed.code === "ABORTED" ? "aborted" : "exhausted";
+      outcomes[index] = {
+        receipt: terminalReceipt(
+          plan,
+          [primaryAttempt],
+          terminal,
+          Math.max(0, now() - started),
+          authorizationOutcome([primaryAttempt]),
+          physicalBatch,
+        ) as DispatchOutcome["receipt"],
+      } as DispatchOutcome;
+      return;
+    }
+    const remainingElapsed = plan.budget.maxElapsedMs === undefined
+      ? undefined
+      : Math.max(1, plan.budget.maxElapsedMs - Math.max(0, now() - started));
+    const fallback = await dispatch({
+      ...plan,
+      candidates: fallbackCandidates,
+      budget: {
+        ...plan.budget,
+        maxAttempts: plan.budget.maxAttempts - 1,
+        ...(remainingElapsed === undefined ? {} : { maxElapsedMs: remainingElapsed }),
+      },
+    }, runtimes, options);
+    const attempts = [primaryAttempt, ...fallback.receipt.attempts];
+    const receipt = terminalReceipt(
+      plan,
+      attempts,
+      fallback.receipt.outcome,
+      Math.max(0, now() - started),
+      authorizationOutcome(attempts),
+      physicalBatch,
+    );
+    outcomes[index] = "result" in fallback
+      ? { result: fallback.result, receipt: receipt as DispatchReceipt & { outcome: "succeeded" } }
+      : { receipt: receipt as DispatchOutcome["receipt"] } as DispatchOutcome;
+  }));
+  return outcomes as DispatchOutcome[];
+}
+
+function validatePlan(plan: ExecutionPlan): void {
+  if (plan.schemaVersion !== 1 || !plan.role || plan.budget.maxAttempts < 1) {
+    throw new TypeError("Invalid execution plan");
+  }
+  validateAuthorizationPlan(plan);
+}
+
+function successfulAttempt(
+  candidate: ExecutionCandidate,
+  result: ModelInvocationResult,
+  elapsedMs: number,
+  reservation: AuthorizationReservation | undefined,
+): DispatchAttemptReceipt {
+  const totalTokens = result.usage.totalTokens
+    ?? (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
+  const estimatedCostUsd = candidate.estimatedUsdPer1kTokens === undefined
+    ? undefined
+    : totalTokens * candidate.estimatedUsdPer1kTokens / 1_000;
+  return {
+    ...attemptIdentity(candidate),
+    outcome: "succeeded",
+    elapsedMs,
+    ...(result.usage.inputTokens === undefined ? {} : { inputTokens: result.usage.inputTokens }),
+    ...(result.usage.outputTokens === undefined ? {} : { outputTokens: result.usage.outputTokens }),
+    totalTokens,
+    ...(estimatedCostUsd === undefined ? {} : { estimatedCostUsd }),
+    ...(reservation ? { reservationId: reservation.reservationId, reservationState: "reserved" } : {}),
+  };
+}
+
+async function settleReservation(
+  ledger: NonNullable<DispatchOptions["authorizationLedger"]>,
+  reservation: AuthorizationReservation,
+  attempt: DispatchAttemptReceipt,
+): Promise<void> {
+  try {
+    await ledger.settle({
+      authorizationId: reservation.authorizationId,
+      reservationId: reservation.reservationId,
+      usage: {
+        attempts: 1,
+        totalTokens: attempt.totalTokens ?? 0,
+        costUsd: attempt.estimatedCostUsd ?? reservation.capacity.maxCostUsd ?? 0,
+      },
+    });
+  } catch (error) {
+    throw new AuthorizationPersistenceError(
+      "Provider invocation completed but authorization settlement failed",
+      error,
+      "settle",
+    );
+  }
+}
+
+async function releaseReservations(
+  reservations: ReadonlyMap<number, AuthorizationReservation>,
+  ledger: DispatchOptions["authorizationLedger"],
+): Promise<void> {
+  if (!ledger) return;
+  await Promise.all([...reservations.values()].map((reservation) => ledger.release({
+    authorizationId: reservation.authorizationId,
+    reservationId: reservation.reservationId,
+    reason: "confirmed-not-launched",
+  })));
 }
 
 function validateAuthorizationPlan(plan: ExecutionPlan): void {

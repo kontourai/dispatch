@@ -153,6 +153,26 @@ into Dispatch routing and receives each terminal receipt through `onReceipt`.
 This is the composition path for workflow hosts and domain adapters; it does not
 move their prompts, schemas, or interpretation into Dispatch.
 
+When the facade declares Relay's `physicalBatch` capability with a positive
+`maxBatchSize`, `invokeBatch()` resolves every item plan in input order and
+requires one common primary runtime that exposes a real provider-native batch
+operation. Dispatch reserves durable worst-case capacity for every item that
+will launch before making the one physical call. Capacity-exhausted items remain
+positional failures and are excluded from that call. Successful siblings settle
+independently; failed items retain their conservative reservation and may
+continue through the remaining explicit fallback candidates as single
+invocations. Receipts preserve the physical primary attempt plus any later
+fallback attempt without storing request content. Every launched item records
+the same content-free physical operation id plus its native item index and
+count, while retaining its own request digest and authorization identity.
+
+The facade strips inconsistent batch declarations and omits `invokeBatch()`.
+Concurrent `invoke()` calls, wrappers that do not preserve the native method,
+and heterogeneous primary runtimes are never described as physical batching.
+One batch has one cancellation signal. A complete native-operation failure is
+projected to every launched item before ordinary item-local fallback policy is
+evaluated.
+
 Framework hosts using the AI SDK v3 model contract can compose their provider
 models through the optional `/ai-sdk` entrypoint:
 
