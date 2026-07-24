@@ -96,6 +96,13 @@ export interface DispatchReceipt {
   totalElapsedMs: number;
   totalTokens: number;
   estimatedCostUsd: number;
+  physicalBatch?: {
+    /** Content-free identity shared by every item in one native operation. */
+    operationId: string;
+    /** Zero-based position inside the native operation, not the caller array. */
+    itemIndex: number;
+    itemCount: number;
+  };
   authorization?: {
     id: string;
     invocationId: string;

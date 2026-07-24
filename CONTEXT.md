@@ -23,12 +23,16 @@ worst-case capacity before launch.
 **Authorization Reservation**: Durable attempt, token, and cost capacity held
 until measured usage is settled or an explicit reconciliation releases it.
 
+**Physical Batch**: One runtime/provider-native operation carrying multiple
+positional requests. It is distinct from concurrent single invocations.
+
 ## Boundaries
 
 - Hosts own configuration sources and credential resolution.
 - Capability sources own their evidence and confidence semantics.
 - Model runtimes own provider/framework invocation mechanics.
 - Dispatch owns deterministic policy evaluation and execution receipts.
+- Dispatch owns routed physical-batch reservation, item fallback, and receipts.
 - Dispatch owns authorization reservation mechanics, not who may issue or
   reconcile an authorization.
 - Domain applications own prompts, tools, schemas, and interpretation.

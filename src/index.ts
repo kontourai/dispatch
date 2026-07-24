@@ -1,5 +1,5 @@
 export { executionPlanDigest } from "./canonical.js";
-export { dispatch } from "./engine.js";
+export { dispatch, dispatchBatch } from "./engine.js";
 export {
   AuthorizationExhaustedError,
   AuthorizationPersistenceError,
