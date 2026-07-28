@@ -38,4 +38,3 @@ jobs:
       - uses: kontourai/flow-agents/.github/actions/trust-verify@e5f348b49f8130f9d452e73b104ba328f9916981 # flow-agents @ reports which DECLARED condition failed (#1015)
         with:
           verify-command: "npm run verify"
-          missing-bundle-policy: "advisory"
