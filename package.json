@@ -48,7 +48,7 @@
     "workflow:validate-artifacts": "flow-agents-validate-artifacts"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^3.0.14",
+    "@ai-sdk/provider": "^4.0.4",
     "@kontourai/bearing": "^0.2.0",
     "@kontourai/datum": "^0.7.0",
     "@kontourai/flow-agents": "5.5.0",
