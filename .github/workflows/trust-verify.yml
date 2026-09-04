@@ -37,6 +37,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # SHA-pinned at the build that names which DECLARED condition failed
       # (flow-agents#1015) — pinned current at adoption, not copied stale.
-      - uses: kontourai/flow-agents/.github/actions/trust-verify@e5f348b49f8130f9d452e73b104ba328f9916981 # flow-agents @ reports which DECLARED condition failed (#1015)
+      - uses: kontourai/flow-agents/.github/actions/trust-verify@b0adbb4a5defdff0b0d2c7641f1735c06dd121e8 # flow-agents @ reports which DECLARED condition failed (#1015)
         with:
           verify-command: "npm run verify"
