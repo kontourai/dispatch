@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { FakeModelRuntime, ModelInvocationError, type ModelRuntime } from "@kontourai/relay";
-import { dispatch, executionPlanDigest, type ExecutionPlan, type RuntimeRegistry } from "../src/index.js";
+import { dispatch, dispatchBatch, executionPlanDigest, type DispatchReceipt, type ExecutionPlan, type RuntimeRegistry } from "../src/index.js";
 
 const request = { messages: [{ role: "user" as const, content: "structured work" }] };
 const basePlan: ExecutionPlan = {
@@ -143,5 +143,63 @@ describe("dispatch", () => {
     };
     const outcome = await dispatch(plan, registry({ contradictory: new FakeModelRuntime([success]) }));
     assert.equal(outcome.receipt.outcome, "no-eligible-candidates");
+  });
+});
+
+describe("attempt model identity", () => {
+  // The pinned Relay release's result type has no modelSource, so these results
+  // are built as variables (not literals) to carry it the way a newer Relay does.
+  const reported = { ...success, model: "served-x", modelSource: "provider-reported" as const };
+  const withoutSource = { ...success, model: "served-x" };
+  const plan: ExecutionPlan = {
+    ...basePlan,
+    candidates: [{ id: "requested-y", runtimeId: "requested-y", evidence: { level: "confirmed", capabilities: ["tools"] } }],
+  };
+
+  it("records the model and modelSource the runtime reported on a dispatch attempt", async () => {
+    const outcome = await dispatch(plan, registry({ "requested-y": new FakeModelRuntime([reported], "requested-y") }));
+    assert.equal(outcome.receipt.outcome, "succeeded");
+    assert.equal(outcome.receipt.attempts[0]!.model, "served-x");
+    assert.equal(outcome.receipt.attempts[0]!.modelSource, "provider-reported");
+  });
+
+  it("records the model and modelSource the runtime reported on a physical batch attempt", async () => {
+    const outcomes = await dispatchBatch([plan, plan], registry({ "requested-y": new FakeModelRuntime([reported, withoutSource], "requested-y") }));
+    assert.deepEqual(outcomes.map(({ receipt }) => receipt.outcome), ["succeeded", "succeeded"]);
+    assert.equal(outcomes[0]!.receipt.attempts[0]!.model, "served-x");
+    assert.equal(outcomes[0]!.receipt.attempts[0]!.modelSource, "provider-reported");
+    assert.equal(outcomes[1]!.receipt.attempts[0]!.model, "served-x");
+    assert.equal("modelSource" in outcomes[1]!.receipt.attempts[0]!, false);
+  });
+
+  it("records the model without guessing a source when the runtime does not report one", async () => {
+    const outcome = await dispatch(plan, registry({ "requested-y": new FakeModelRuntime([withoutSource], "requested-y") }));
+    assert.equal(outcome.receipt.attempts[0]!.model, "served-x");
+    assert.equal("modelSource" in outcome.receipt.attempts[0]!, false);
+    const unknown = { ...success, modelSource: "guessed" };
+    const unrecognised = await dispatch(plan, registry({ "requested-y": new FakeModelRuntime([unknown], "requested-y") }));
+    assert.equal(unrecognised.receipt.attempts[0]!.model, "m1");
+    assert.equal("modelSource" in unrecognised.receipt.attempts[0]!, false);
+  });
+
+  it("leaves failed attempts without a model identity", async () => {
+    const failing = new FakeModelRuntime([{ code: "RATE_LIMITED", message: "rate limited", retryable: true }], "requested-y");
+    const outcome = await dispatch({ ...plan, budget: { maxAttempts: 1 } }, registry({ "requested-y": failing }));
+    assert.equal(outcome.receipt.outcome, "exhausted");
+    assert.equal("model" in outcome.receipt.attempts[0]!, false);
+    assert.equal("modelSource" in outcome.receipt.attempts[0]!, false);
+  });
+
+  it("keeps receipts written before the model fields existed valid", () => {
+    // Dispatch has no runtime receipt validator; the contract is the type. This
+    // literal is a schemaVersion 1 receipt as written before the fields existed,
+    // so `npm run typecheck` fails if either field stops being optional.
+    const stored: DispatchReceipt = {
+      schemaVersion: 1, planDigest: "p", requestDigest: "r", role: "extractor", outcome: "succeeded",
+      attempts: [{ candidateId: "c", runtimeId: "r", outcome: "succeeded", elapsedMs: 1, totalTokens: 5 }],
+      totalElapsedMs: 1, totalTokens: 5, estimatedCostUsd: 0,
+    };
+    assert.equal(stored.attempts[0]!.model, undefined);
+    assert.equal(stored.attempts[0]!.modelSource, undefined);
   });
 });

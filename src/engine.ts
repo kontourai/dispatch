@@ -48,6 +48,19 @@ function attemptIdentity(candidate: ExecutionCandidate) {
   };
 }
 
+/**
+ * The model identity a runtime reported, as recorded on a successful attempt.
+ * `modelSource` is read defensively: the pinned Relay release's result type
+ * predates it, and a runtime that does not report it gets no guessed value.
+ */
+function reportedModel(result: ModelInvocationResult): Pick<DispatchAttemptReceipt, "model" | "modelSource"> {
+  const source = (result as { modelSource?: unknown }).modelSource;
+  return {
+    ...(typeof result.model === "string" && result.model ? { model: result.model } : {}),
+    ...(source === "provider-reported" || source === "configured" ? { modelSource: source } : {}),
+  };
+}
+
 function terminalReceipt(
   plan: ExecutionPlan,
   attempts: readonly DispatchAttemptReceipt[],
@@ -147,7 +160,7 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
       const totalTokens = result.usage.totalTokens ?? (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
       const estimatedCostUsd = candidate.estimatedUsdPer1kTokens === undefined ? undefined : totalTokens * candidate.estimatedUsdPer1kTokens / 1000;
       const attempt: DispatchAttemptReceipt = {
-        ...attemptIdentity(candidate), outcome: "succeeded", elapsedMs: Math.max(0, now() - attemptStarted),
+        ...attemptIdentity(candidate), ...reportedModel(result), outcome: "succeeded", elapsedMs: Math.max(0, now() - attemptStarted),
         ...(result.usage.inputTokens === undefined ? {} : { inputTokens: result.usage.inputTokens }),
         ...(result.usage.outputTokens === undefined ? {} : { outputTokens: result.usage.outputTokens }),
         totalTokens,
@@ -445,6 +458,7 @@ function successfulAttempt(
     : totalTokens * candidate.estimatedUsdPer1kTokens / 1_000;
   return {
     ...attemptIdentity(candidate),
+    ...reportedModel(result),
     outcome: "succeeded",
     elapsedMs,
     ...(result.usage.inputTokens === undefined ? {} : { inputTokens: result.usage.inputTokens }),
