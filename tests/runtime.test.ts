@@ -93,65 +93,66 @@ describe("Dispatch Relay runtime", () => {
       (error: unknown) => error instanceof DispatchRuntimeError && error.code === "ABORTED" && error.receipt.outcome === "aborted");
   });
 
-  const exhaustionCases: readonly { label: string; failures: readonly [ModelInvocationErrorCode, boolean][]; code: ModelInvocationErrorCode; retryable: boolean }[] = [
+  // "missing" is a candidate whose runtime is not registered (RUNTIME_NOT_FOUND).
+  type Failure = readonly [ModelInvocationErrorCode, boolean] | "missing";
+  const exhaustionCases: readonly { label: string; failures: readonly Failure[]; retryRuntimeFailures?: boolean; code: ModelInvocationErrorCode; retryable: boolean }[] = [
     { label: "two retryable provider outages", failures: [["PROVIDER_UNAVAILABLE", true], ["PROVIDER_UNAVAILABLE", true]], code: "PROVIDER_UNAVAILABLE", retryable: true },
+    { label: "retryable outage then rate limit", failures: [["PROVIDER_UNAVAILABLE", true], ["RATE_LIMITED", true]], code: "RATE_LIMITED", retryable: true },
     { label: "one retryable rate limit", failures: [["RATE_LIMITED", true]], code: "RATE_LIMITED", retryable: true },
     { label: "one invalid request", failures: [["INVALID_REQUEST", false]], code: "INVALID_REQUEST", retryable: false },
     { label: "one authentication failure", failures: [["AUTHENTICATION_FAILED", false]], code: "AUTHENTICATION_FAILED", retryable: false },
+    // A non-retryable fallback failure masks a transient primary failure.
     { label: "retryable outage then invalid request", failures: [["PROVIDER_UNAVAILABLE", true], ["INVALID_REQUEST", false]], code: "INVALID_REQUEST", retryable: false },
+    { label: "invalid request then rate limit under retryRuntimeFailures", failures: [["INVALID_REQUEST", false], ["RATE_LIMITED", true]], retryRuntimeFailures: true, code: "INVALID_REQUEST", retryable: false },
+    { label: "authentication failure then outage under retryRuntimeFailures", failures: [["AUTHENTICATION_FAILED", false], ["PROVIDER_UNAVAILABLE", true]], retryRuntimeFailures: true, code: "AUTHENTICATION_FAILED", retryable: false },
+    { label: "non-retryable outage then missing fallback runtime under retryRuntimeFailures", failures: [["PROVIDER_UNAVAILABLE", false], "missing"], retryRuntimeFailures: true, code: "PROVIDER_UNAVAILABLE", retryable: false },
+    { label: "retryable outage then missing fallback runtime", failures: [["RATE_LIMITED", true], "missing"], code: "PROVIDER_UNAVAILABLE", retryable: false },
+    { label: "only a missing runtime", failures: ["missing"], code: "PROVIDER_UNAVAILABLE", retryable: false },
   ];
-  const exhaustionPlan = (count: number) => ({
+  const exhaustionPlan = (count: number, retryRuntimeFailures = false) => ({
     schemaVersion: 1 as const,
     role: "worker",
     candidates: Array.from({ length: count }, (_, index) => ({ id: `c${String(index)}`, runtimeId: `rt${String(index)}` })),
     budget: { maxAttempts: count },
+    ...(retryRuntimeFailures ? { policy: { retryRuntimeFailures: true } } : {}),
   });
-  const failingRuntimes = (failures: readonly [ModelInvocationErrorCode, boolean][]) => {
-    const runtimes = new Map(failures.map(([code, retryable], index) =>
-      [`rt${String(index)}`, new FakeModelRuntime([{ code, message: code, retryable }], `rt${String(index)}`)]));
+  const failingRuntimes = (failures: readonly Failure[]) => {
+    const runtimes = new Map<string, FakeModelRuntime>(failures.flatMap((failure, index) => failure === "missing" ? [] : [
+      [`rt${String(index)}`, new FakeModelRuntime([{ code: failure[0], message: failure[0], retryable: failure[1] }], `rt${String(index)}`)] as const]));
     return { get: (id: string) => runtimes.get(id) };
   };
+  const recorded = (failures: readonly Failure[]) => failures.map((failure) => failure === "missing" ? ["RUNTIME_NOT_FOUND", true] : [...failure]);
 
-  for (const { label, failures, code, retryable } of exhaustionCases) {
-    it(`carries the ending attempt's class on an exhausted invocation: ${label}`, async () => {
+  for (const { label, failures, retryRuntimeFailures, code, retryable } of exhaustionCases) {
+    it(`summarises the failed attempts on an exhausted invocation: ${label}`, async () => {
       const runtime = createDispatchRuntime({
-        id: "dispatch:worker", capabilities, plan: exhaustionPlan(failures.length), runtimes: failingRuntimes(failures),
+        id: "dispatch:worker", capabilities, plan: exhaustionPlan(failures.length, retryRuntimeFailures), runtimes: failingRuntimes(failures),
       });
       await assert.rejects(() => runtime.invoke({ messages: [{ role: "user", content: "work" }] }), (error: unknown) => {
         assert.ok(error instanceof DispatchRuntimeError);
         assert.equal(error.receipt.outcome, "exhausted");
-        assert.deepEqual(error.receipt.attempts.map((attempt) => [attempt.errorCode, attempt.retryable]), failures);
+        assert.deepEqual(error.receipt.attempts.map((attempt) => [attempt.errorCode, attempt.retryable]), recorded(failures));
         assert.deepEqual([error.code, error.retryable], [code, retryable]);
         return true;
       });
     });
 
-    it(`carries the ending attempt's class on an exhausted batch item: ${label}`, async () => {
+    // A physical batch needs its primary runtime, so skip plans that start with a missing one.
+    if (failures[0] === "missing") continue;
+    it(`summarises the failed attempts on an exhausted batch item: ${label}`, async () => {
       const receipts: DispatchReceipt[] = [];
       const runtime = createDispatchRuntime({
         id: "dispatch:batch", capabilities: { ...capabilities, physicalBatch: true, maxBatchSize: 8 },
-        plan: exhaustionPlan(failures.length), runtimes: failingRuntimes(failures),
+        plan: exhaustionPlan(failures.length, retryRuntimeFailures), runtimes: failingRuntimes(failures),
         onReceipt: (receipt) => { receipts.push(receipt); },
       });
       const [outcome] = await runtime.invokeBatch!([{ messages: [{ role: "user", content: "work" }] }]);
       assert.equal(outcome?.status, "rejected");
       assert.equal(receipts[0]?.outcome, "exhausted");
-      assert.deepEqual(receipts[0]?.attempts.map((attempt) => [attempt.errorCode, attempt.retryable]), failures);
+      assert.deepEqual(receipts[0]?.attempts.map((attempt) => [attempt.errorCode, attempt.retryable]), recorded(failures));
       if (outcome?.status === "rejected") assert.deepEqual([outcome.reason.code, outcome.reason.retryable], [code, retryable]);
     });
   }
-
-  it("maps a Dispatch-local attempt code to PROVIDER_UNAVAILABLE with that attempt's retry flag", async () => {
-    const runtime = createDispatchRuntime({
-      id: "dispatch:worker", capabilities, plan: exhaustionPlan(1), runtimes: { get: () => undefined },
-    });
-    await assert.rejects(() => runtime.invoke({ messages: [{ role: "user", content: "work" }] }), (error: unknown) => {
-      assert.ok(error instanceof DispatchRuntimeError);
-      assert.deepEqual(error.receipt.attempts.map((attempt) => [attempt.errorCode, attempt.retryable]), [["RUNTIME_NOT_FOUND", true]]);
-      assert.deepEqual([error.code, error.retryable], ["PROVIDER_UNAVAILABLE", true]);
-      return true;
-    });
-  });
 
   it("keeps no-eligible-candidates as non-retryable PROVIDER_UNAVAILABLE", async () => {
     const runtime = createDispatchRuntime({
