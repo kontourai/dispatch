@@ -7,7 +7,7 @@ import {
   type ModelRuntime,
   type ModelRuntimeCapabilities,
 } from "@kontourai/relay";
-import { dispatch, dispatchBatch } from "./engine.js";
+import { dispatch, dispatchBatch, invocationErrorCodes } from "./engine.js";
 import type { AuthorizationLedger, DispatchReceipt, ExecutionPlan, RuntimeRegistry } from "./types.js";
 
 export type DispatchRuntimePlan = Omit<ExecutionPlan, "request">;
@@ -25,13 +25,45 @@ export interface DispatchRuntimeOptions {
   onReceiptDeliveryFailure?: (error: ReceiptDeliveryError) => void | Promise<void>;
 }
 
+/**
+ * For an `exhausted` outcome the error summarises the failed attempts,
+ * erring towards "do not retry":
+ * - `retryable` is true only when every failed attempt was retryable. A
+ *   Dispatch-local attempt code such as `RUNTIME_NOT_FOUND` counts as
+ *   non-retryable, because a missing runtime is a configuration error that an
+ *   outer retry would hit again.
+ * - `code` comes from the first non-retryable attempt, or from the last attempt
+ *   when all were retryable. A Dispatch-local code surfaces as
+ *   `PROVIDER_UNAVAILABLE`.
+ * A non-retryable fallback failure therefore also masks a transient primary
+ * failure. Other outcomes keep their fixed, non-retryable mapping.
+ * `receipt.attempts` stays the full record.
+ */
 export class DispatchRuntimeError extends ModelInvocationError {
   constructor(readonly receipt: DispatchReceipt) {
-    const aborted = receipt.outcome === "aborted";
-    super(aborted ? "ABORTED" : receipt.outcome === "exhausted" || receipt.outcome === "no-eligible-candidates" ? "PROVIDER_UNAVAILABLE" : "RUNTIME_FAILURE",
-      `Dispatch invocation ended with ${receipt.outcome}`, false);
+    const [code, retryable] = terminalClassification(receipt);
+    super(code, `Dispatch invocation ended with ${receipt.outcome}`, retryable);
     this.name = "DispatchRuntimeError";
   }
+}
+
+function terminalClassification(receipt: DispatchReceipt): [ModelInvocationError["code"], boolean] {
+  if (receipt.outcome === "aborted") return ["ABORTED", false];
+  if (receipt.outcome === "exhausted") {
+    const failed = receipt.attempts
+      .filter((attempt) => attempt.outcome === "failed")
+      .map((attempt) => {
+        const relayCode = attempt.errorCode !== undefined && invocationErrorCodes.has(attempt.errorCode);
+        return {
+          code: relayCode ? attempt.errorCode as ModelInvocationError["code"] : "PROVIDER_UNAVAILABLE" as const,
+          retryable: relayCode && attempt.retryable === true,
+        };
+      });
+    const deciding = failed.find((attempt) => !attempt.retryable) ?? failed.at(-1);
+    if (deciding) return [deciding.code, deciding.retryable];
+  }
+  if (receipt.outcome === "exhausted" || receipt.outcome === "no-eligible-candidates") return ["PROVIDER_UNAVAILABLE", false];
+  return ["RUNTIME_FAILURE", false];
 }
 
 /**

@@ -10,7 +10,7 @@ import type { AuthorizationReservation, DispatchAttemptReceipt, DispatchOptions,
 
 const evidenceRank: Record<EvidenceLevel, number> = { unavailable: 0, declared: 1, confirmed: 2 };
 const fidelityRank: Record<StructuredToolsFidelity, number> = { unavailable: 0, prompted: 1, native: 2 };
-const invocationErrorCodes = new Set([
+export const invocationErrorCodes: ReadonlySet<string> = new Set([
   "ABORTED",
   "AUTHENTICATION_FAILED",
   "INVALID_REQUEST",
