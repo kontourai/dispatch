@@ -191,6 +191,16 @@ const model = createAiSdkDispatchModel({
 The host still owns candidate configuration and receipt persistence. Relay
 v0.2 buffers this model's compatibility stream; it is not live token streaming.
 
+### Invocation failures
+
+When a Dispatch-backed runtime ends without a result it throws
+`DispatchRuntimeError` with the terminal receipt attached. For an `exhausted`
+outcome, its `code` and `retryable` come from the last failed attempt, the one
+whose classification ended the plan (a Dispatch-local code such as
+`RUNTIME_NOT_FOUND` surfaces as `PROVIDER_UNAVAILABLE`). `aborted`,
+`budget-exceeded` and `no-eligible-candidates` stay non-retryable. Batch items
+rejected by Dispatch carry the same `code` and `retryable`.
+
 ### Receipt delivery failures
 
 `onReceipt` runs only after Dispatch has reached a terminal model outcome. Its

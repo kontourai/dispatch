@@ -7,7 +7,7 @@ import {
   type ModelRuntime,
   type ModelRuntimeCapabilities,
 } from "@kontourai/relay";
-import { dispatch, dispatchBatch } from "./engine.js";
+import { dispatch, dispatchBatch, invocationErrorCodes } from "./engine.js";
 import type { AuthorizationLedger, DispatchReceipt, ExecutionPlan, RuntimeRegistry } from "./types.js";
 
 export type DispatchRuntimePlan = Omit<ExecutionPlan, "request">;
@@ -25,13 +25,33 @@ export interface DispatchRuntimeOptions {
   onReceiptDeliveryFailure?: (error: ReceiptDeliveryError) => void | Promise<void>;
 }
 
+/**
+ * An `exhausted` outcome carries the class and retry flag of the last failed
+ * attempt, the one whose classification ended the plan. Other outcomes keep
+ * their fixed, non-retryable mapping. `receipt.attempts` stays the full record.
+ */
 export class DispatchRuntimeError extends ModelInvocationError {
   constructor(readonly receipt: DispatchReceipt) {
-    const aborted = receipt.outcome === "aborted";
-    super(aborted ? "ABORTED" : receipt.outcome === "exhausted" || receipt.outcome === "no-eligible-candidates" ? "PROVIDER_UNAVAILABLE" : "RUNTIME_FAILURE",
-      `Dispatch invocation ended with ${receipt.outcome}`, false);
+    const [code, retryable] = terminalClassification(receipt);
+    super(code, `Dispatch invocation ended with ${receipt.outcome}`, retryable);
     this.name = "DispatchRuntimeError";
   }
+}
+
+function terminalClassification(receipt: DispatchReceipt): [ModelInvocationError["code"], boolean] {
+  if (receipt.outcome === "aborted") return ["ABORTED", false];
+  if (receipt.outcome === "exhausted") {
+    const last = [...receipt.attempts].reverse().find((attempt) => attempt.outcome === "failed");
+    if (last) {
+      // Dispatch-local codes such as RUNTIME_NOT_FOUND are not Relay codes.
+      const code = last.errorCode !== undefined && invocationErrorCodes.has(last.errorCode)
+        ? last.errorCode as ModelInvocationError["code"]
+        : "PROVIDER_UNAVAILABLE";
+      return [code, last.retryable === true];
+    }
+  }
+  if (receipt.outcome === "exhausted" || receipt.outcome === "no-eligible-candidates") return ["PROVIDER_UNAVAILABLE", false];
+  return ["RUNTIME_FAILURE", false];
 }
 
 /**
