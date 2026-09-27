@@ -45,6 +45,14 @@ Receipts include digests and measured outcomes, not prompt content or credential
 values. Budget overruns discovered from measured usage are terminal and suppress
 the model result while preserving the attempt in the receipt.
 
+Each successful attempt records `model` and, when the runtime reports it,
+`modelSource`, both copied from the Relay result. `model` is the runtime's
+report, not Dispatch's: only `modelSource: "provider-reported"` identifies the
+model that actually served the request. `configured` means the runtime echoed
+the model it was configured with, and an absent `modelSource` means the runtime
+did not say. Failed attempts carry neither field. Both fields are optional, so
+receipts written before they existed remain valid `schemaVersion: 1` receipts.
+
 ## Durable execution authorization
 
 Per-invocation budgets are measured from one Dispatch call. Hosts that need a

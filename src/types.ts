@@ -73,6 +73,15 @@ export interface DispatchAttemptReceipt {
   runtimeId: string;
   outcome: AttemptOutcome;
   structuredToolsFidelity?: StructuredToolsFidelity;
+  /**
+   * The model the runtime reported for a successful attempt. It is the model
+   * that served the request only when `modelSource` is `provider-reported`;
+   * `configured` means the runtime echoed its configuration, and an absent
+   * `modelSource` means the runtime did not say which it was.
+   */
+  model?: string;
+  /** Copied from the Relay result; never inferred by Dispatch. */
+  modelSource?: "provider-reported" | "configured";
   elapsedMs: number;
   inputTokens?: number;
   outputTokens?: number;
