@@ -105,6 +105,7 @@ describe("Dispatch Relay runtime", () => {
     { label: "retryable outage then invalid request", failures: [["PROVIDER_UNAVAILABLE", true], ["INVALID_REQUEST", false]], code: "INVALID_REQUEST", retryable: false },
     { label: "invalid request then rate limit under retryRuntimeFailures", failures: [["INVALID_REQUEST", false], ["RATE_LIMITED", true]], retryRuntimeFailures: true, code: "INVALID_REQUEST", retryable: false },
     { label: "authentication failure then outage under retryRuntimeFailures", failures: [["AUTHENTICATION_FAILED", false], ["PROVIDER_UNAVAILABLE", true]], retryRuntimeFailures: true, code: "AUTHENTICATION_FAILED", retryable: false },
+    { label: "two non-retryable failures under retryRuntimeFailures: the first decides", failures: [["INVALID_REQUEST", false], ["AUTHENTICATION_FAILED", false]], retryRuntimeFailures: true, code: "INVALID_REQUEST", retryable: false },
     { label: "non-retryable outage then missing fallback runtime under retryRuntimeFailures", failures: [["PROVIDER_UNAVAILABLE", false], "missing"], retryRuntimeFailures: true, code: "PROVIDER_UNAVAILABLE", retryable: false },
     { label: "retryable outage then missing fallback runtime", failures: [["RATE_LIMITED", true], "missing"], code: "PROVIDER_UNAVAILABLE", retryable: false },
     { label: "only a missing runtime", failures: ["missing"], code: "PROVIDER_UNAVAILABLE", retryable: false },
