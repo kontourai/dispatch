@@ -50,11 +50,12 @@ function attemptIdentity(candidate: ExecutionCandidate) {
 
 /**
  * The model identity a runtime reported, as recorded on a successful attempt.
- * `modelSource` is read defensively: the pinned Relay release's result type
- * predates it, and a runtime that does not report it gets no guessed value.
+ * `modelSource` is optional in Relay's result type and a third-party runtime can
+ * return any value at runtime, so only the two defined values are copied; a
+ * runtime that does not report one gets no guessed value.
  */
 function reportedModel(result: ModelInvocationResult): Pick<DispatchAttemptReceipt, "model" | "modelSource"> {
-  const source = (result as { modelSource?: unknown }).modelSource;
+  const source: unknown = result.modelSource;
   return {
     ...(typeof result.model === "string" && result.model ? { model: result.model } : {}),
     ...(source === "provider-reported" || source === "configured" ? { modelSource: source } : {}),

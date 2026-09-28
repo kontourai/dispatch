@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@kontourai/relay':
-        specifier: 0.6.0
-        version: 0.6.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))
+        specifier: 0.7.0
+        version: 0.7.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))
     devDependencies:
       '@ai-sdk/provider':
         specifier: ^3.0.14
@@ -19,14 +19,14 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       '@kontourai/datum':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.8.0
+        version: 0.8.0
       '@kontourai/flow-agents':
         specifier: 5.5.0
-        version: 5.5.0(@ai-sdk/provider@3.0.14)(@kontourai/bearing@0.2.0)(@kontourai/datum@0.7.0)(typescript@7.0.2)(zod@4.4.3)
+        version: 5.5.0(@ai-sdk/provider@3.0.14)(@kontourai/bearing@0.2.0)(@kontourai/datum@0.8.0)(typescript@7.0.2)(zod@4.4.3)
       '@kontourai/veritas':
-        specifier: ^1.3.0
-        version: 1.5.3(zod@4.4.3)
+        specifier: ^1.7.4
+        version: 1.7.4(zod@4.4.3)
       '@types/json-schema':
         specifier: ^7.0.15
         version: 7.0.15
@@ -231,8 +231,8 @@ packages:
     resolution: {integrity: sha512-xhMLtE89WRoa7/MU8C9/Bl676hPKT+niKmp/fj26gW5aL6QVfaBx/ywlgyoEAmmLxkMpjk4PVKLksvslXyzM+A==}
     engines: {node: '>=22'}
 
-  '@kontourai/datum@0.7.0':
-    resolution: {integrity: sha512-3f1tzfwPeQiACQY8/LSuHkXzmNHM8YBFS4g2BWkVYotsafI2EYRgwtdhKWT3S1Iiq5Wjp7Kf2w8lup8/cyLPIw==}
+  '@kontourai/datum@0.8.0':
+    resolution: {integrity: sha512-aP12EVopTRNEuYYPCLeNAXFpTcKUpMO46lQoGRDOQ6M/8p27745bZlpSCKAW6IFetu5aHhNmm2Tn/hWlOIe34Q==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -291,8 +291,8 @@ packages:
       '@anthropic-ai/sdk':
         optional: true
 
-  '@kontourai/relay@0.6.0':
-    resolution: {integrity: sha512-Up465lPIRAOFz7mZndsDVgBOoW1weaRej7K5//bd+RPYFkfnlYNF4jxz0ClaTusJDaNZMln+4oZYsaQlqgA8TA==}
+  '@kontourai/relay@0.7.0':
+    resolution: {integrity: sha512-OncSgoOQSWZZeEZSo3fFrqT6DrRGer+fwy/q8Q1FXzJ6vQAetx9OM7xk1gclBSTLGD1p8rcVdc5IasQLksTRkQ==}
     engines: {node: '>=22'}
     peerDependencies:
       '@ai-sdk/provider': '>=3.0.0'
@@ -316,8 +316,8 @@ packages:
       typescript:
         optional: true
 
-  '@kontourai/veritas@1.5.3':
-    resolution: {integrity: sha512-nQIGjoKBSvJ8ldtco+MPzXiKkkPMftLKd+/oez1xPf6+DW8LNXUW7tcs5hLEq5kkuW1vVjT12uhQnB6M31o+xQ==}
+  '@kontourai/veritas@1.7.4':
+    resolution: {integrity: sha512-G960alKtrpYg6fgxIpU/02zef6mHzh5jHmNggtqERoYtFpe6XUIhVmy3at6G+ff8MlytSKyEMwxbvWPOrLzaew==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -688,10 +688,6 @@ packages:
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
-
-  hachure@0.14.0:
-    resolution: {integrity: sha512-mK6h4W8NNZqVu3Di7eCD6QRIgmJDzFrrBj3+ss4nvVggo4ym68T/9tRpKD4rJOh80pTtDxVF8k3HuJ0KcuGRtg==}
-    hasBin: true
 
   hachure@0.15.0:
     resolution: {integrity: sha512-4YKLShbDKG+k52lJvH9shup7UYAX7pW+EA8c/4dx3RQFqCmORHl9gjJrM9vUljuTml/haTJgWYPd1G1MWmrm8Q==}
@@ -1160,26 +1156,26 @@ snapshots:
 
   '@kontourai/conduit@0.2.1': {}
 
-  '@kontourai/datum@0.7.0':
+  '@kontourai/datum@0.8.0':
     dependencies:
       '@kontourai/bearing': 0.2.0
     transitivePeerDependencies:
       - playwright
 
-  '@kontourai/dispatch@0.3.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))(@kontourai/bearing@0.2.0)(@kontourai/datum@0.7.0)':
+  '@kontourai/dispatch@0.3.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))(@kontourai/bearing@0.2.0)(@kontourai/datum@0.8.0)':
     dependencies:
       '@kontourai/relay': 0.2.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))
     optionalDependencies:
       '@ai-sdk/provider': 3.0.14
       '@kontourai/bearing': 0.2.0
-      '@kontourai/datum': 0.7.0
+      '@kontourai/datum': 0.8.0
     transitivePeerDependencies:
       - '@anthropic-ai/sdk'
 
-  '@kontourai/flow-agents@5.5.0(@ai-sdk/provider@3.0.14)(@kontourai/bearing@0.2.0)(@kontourai/datum@0.7.0)(typescript@7.0.2)(zod@4.4.3)':
+  '@kontourai/flow-agents@5.5.0(@ai-sdk/provider@3.0.14)(@kontourai/bearing@0.2.0)(@kontourai/datum@0.8.0)(typescript@7.0.2)(zod@4.4.3)':
     dependencies:
       '@kontourai/conduit': 0.2.1
-      '@kontourai/dispatch': 0.3.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))(@kontourai/bearing@0.2.0)(@kontourai/datum@0.7.0)
+      '@kontourai/dispatch': 0.3.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))(@kontourai/bearing@0.2.0)(@kontourai/datum@0.8.0)
       '@kontourai/flow': 3.9.0
       '@kontourai/relay': 0.4.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))
       '@kontourai/survey': 2.0.0(typescript@7.0.2)
@@ -1219,7 +1215,7 @@ snapshots:
     optionalDependencies:
       '@anthropic-ai/sdk': 0.74.0(zod@4.4.3)
 
-  '@kontourai/relay@0.6.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))':
+  '@kontourai/relay@0.7.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))':
     dependencies:
       '@ai-sdk/provider': 3.0.14
     optionalDependencies:
@@ -1240,13 +1236,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@kontourai/veritas@1.5.3(zod@4.4.3)':
+  '@kontourai/veritas@1.7.4(zod@4.4.3)':
     dependencies:
       '@kontourai/surface': 2.13.0
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
-      hachure: 0.14.0
+      cross-spawn: 7.0.6
+      hachure: 0.15.0
       picomatch: 4.0.5
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -1649,8 +1646,6 @@ snapshots:
     optional: true
 
   gopd@1.2.0: {}
-
-  hachure@0.14.0: {}
 
   hachure@0.15.0: {}
 

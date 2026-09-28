@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { FakeModelRuntime, ModelInvocationError, type ModelRuntime } from "@kontourai/relay";
+import { FakeModelRuntime, ModelInvocationError, type ModelInvocationResult, type ModelRuntime } from "@kontourai/relay";
 import { dispatch, dispatchBatch, executionPlanDigest, type DispatchReceipt, type ExecutionPlan, type RuntimeRegistry } from "../src/index.js";
 
 const request = { messages: [{ role: "user" as const, content: "structured work" }] };
@@ -147,8 +147,6 @@ describe("dispatch", () => {
 });
 
 describe("attempt model identity", () => {
-  // The pinned Relay release's result type has no modelSource, so these results
-  // are built as variables (not literals) to carry it the way a newer Relay does.
   const reported = { ...success, model: "served-x", modelSource: "provider-reported" as const };
   const withoutSource = { ...success, model: "served-x" };
   const plan: ExecutionPlan = {
@@ -176,7 +174,8 @@ describe("attempt model identity", () => {
     const outcome = await dispatch(plan, registry({ "requested-y": new FakeModelRuntime([withoutSource], "requested-y") }));
     assert.equal(outcome.receipt.attempts[0]!.model, "served-x");
     assert.equal("modelSource" in outcome.receipt.attempts[0]!, false);
-    const unknown = { ...success, modelSource: "guessed" };
+    // A third-party runtime is not bound by Relay's types at runtime.
+    const unknown = { ...success, modelSource: "guessed" } as unknown as ModelInvocationResult;
     const unrecognised = await dispatch(plan, registry({ "requested-y": new FakeModelRuntime([unknown], "requested-y") }));
     assert.equal(unrecognised.receipt.attempts[0]!.model, "m1");
     assert.equal("modelSource" in unrecognised.receipt.attempts[0]!, false);
