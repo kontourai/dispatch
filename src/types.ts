@@ -1,4 +1,4 @@
-import type { ModelInvocationRequest, ModelInvocationResult, ModelRuntime } from "@kontourai/relay";
+import type { ModelInvocationRequest, ModelInvocationResult, ModelRuntime, ModelSource } from "@kontourai/relay";
 
 export type EvidenceLevel = "unavailable" | "declared" | "confirmed";
 export type StructuredToolsFidelity = "unavailable" | "prompted" | "native";
@@ -81,7 +81,7 @@ export interface DispatchAttemptReceipt {
    */
   model?: string;
   /** Copied from the Relay result; never inferred by Dispatch. */
-  modelSource?: "provider-reported" | "configured";
+  modelSource?: ModelSource;
   elapsedMs: number;
   inputTokens?: number;
   outputTokens?: number;

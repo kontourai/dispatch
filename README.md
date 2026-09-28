@@ -45,6 +45,13 @@ Receipts include digests and measured outcomes, not prompt content or credential
 values. Budget overruns discovered from measured usage are terminal and suppress
 the model result while preserving the attempt in the receipt.
 
+Dispatch retries by moving to the next candidate; it does not retry the same
+candidate. Relay's Anthropic-compatible runtime sends exactly one provider
+request per invocation by default (`maxRetries: 0`), so a single-candidate plan
+like the sketch above gets no retry at all. Pass `maxRetries` (and `timeoutMs`)
+to `createAnthropicRuntime` when a single candidate should retry transient
+failures.
+
 Each successful attempt records `model` and, when the runtime reports it,
 `modelSource`, both copied from the Relay result. `model` is the runtime's
 report, not Dispatch's: only `modelSource: "provider-reported"` identifies the

@@ -32,7 +32,7 @@ describe("Dispatch Relay runtime", () => {
       encoding: "utf8",
     })) as { dependencies?: Record<string, { version?: string; dependencies?: Record<string, unknown> }> };
     const direct = installed.dependencies?.["@kontourai/relay"];
-    assert.equal(direct?.version, "0.6.0");
+    assert.equal(direct?.version, "0.7.0");
     assert.equal(direct?.dependencies?.["@kontourai/relay"], undefined);
     const capabilities: ModelRuntimeCapabilities = {
       structuredTools: true,
@@ -54,6 +54,21 @@ describe("Dispatch Relay runtime", () => {
     });
     assert.deepEqual(await runtime.invoke({ messages: [{ role: "user", content: "work" }] }), result);
     assert.equal(receipt?.outcome, "succeeded");
+  });
+
+  it("returns the Relay result with its modelSource to the host", async () => {
+    const reported = { ...result, model: "served-snapshot", modelSource: "provider-reported" as const };
+    let receipt: DispatchReceipt | undefined;
+    const runtime = createDispatchRuntime({
+      id: "dispatch:worker", capabilities,
+      plan: { schemaVersion: 1, role: "worker", candidates: [{ id: "one", runtimeId: "one" }], budget: { maxAttempts: 1 } },
+      runtimes: { get: (id) => id === "one" ? new FakeModelRuntime([reported]) : undefined },
+      onReceipt: (value) => { receipt = value; },
+    });
+    const returned = await runtime.invoke({ messages: [{ role: "user", content: "work" }] });
+    assert.equal(returned.model, "served-snapshot");
+    assert.equal(returned.modelSource, "provider-reported");
+    assert.equal(receipt?.attempts[0]?.modelSource, "provider-reported");
   });
 
   it("forwards durable authorization through the Relay runtime facade", async () => {
