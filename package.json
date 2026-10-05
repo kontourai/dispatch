@@ -1,6 +1,6 @@
 {
   "name": "@kontourai/dispatch",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Policy-aware model execution with portable routing, budgets, fallbacks, and receipts",
   "type": "module",
   "license": "Apache-2.0",
@@ -82,6 +82,6 @@
     "url": "git+https://github.com/kontourai/dispatch.git"
   },
   "dependencies": {
-    "@kontourai/relay": "0.7.0"
+    "@kontourai/relay": "0.7.1"
   }
 }

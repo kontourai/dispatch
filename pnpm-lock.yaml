@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@kontourai/relay':
-        specifier: 0.7.0
-        version: 0.7.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))
+        specifier: 0.7.1
+        version: 0.7.1(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))
     devDependencies:
       '@ai-sdk/provider':
         specifier: ^3.0.14
@@ -291,8 +291,8 @@ packages:
       '@anthropic-ai/sdk':
         optional: true
 
-  '@kontourai/relay@0.7.0':
-    resolution: {integrity: sha512-OncSgoOQSWZZeEZSo3fFrqT6DrRGer+fwy/q8Q1FXzJ6vQAetx9OM7xk1gclBSTLGD1p8rcVdc5IasQLksTRkQ==}
+  '@kontourai/relay@0.7.1':
+    resolution: {integrity: sha512-/qc/dK5fe3mClq1/qtSeV88UBiq4Q7PHHGZyhQtUVKAygZAJ21F5T3NIZhvLqOi+udPg074Alh4VEWN7RADOUg==}
     engines: {node: '>=22'}
     peerDependencies:
       '@ai-sdk/provider': '>=3.0.0'
@@ -1215,7 +1215,7 @@ snapshots:
     optionalDependencies:
       '@anthropic-ai/sdk': 0.74.0(zod@4.4.3)
 
-  '@kontourai/relay@0.7.0(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))':
+  '@kontourai/relay@0.7.1(@ai-sdk/provider@3.0.14)(@anthropic-ai/sdk@0.74.0(zod@4.4.3))':
     dependencies:
       '@ai-sdk/provider': 3.0.14
     optionalDependencies:

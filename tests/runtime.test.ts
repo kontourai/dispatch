@@ -32,7 +32,7 @@ describe("Dispatch Relay runtime", () => {
       encoding: "utf8",
     })) as { dependencies?: Record<string, { version?: string; dependencies?: Record<string, unknown> }> };
     const direct = installed.dependencies?.["@kontourai/relay"];
-    assert.equal(direct?.version, "0.7.0");
+    assert.equal(direct?.version, "0.7.1");
     assert.equal(direct?.dependencies?.["@kontourai/relay"], undefined);
     const capabilities: ModelRuntimeCapabilities = {
       structuredTools: true,
