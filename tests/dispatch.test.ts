@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, before, describe, it } from "node:test";
+import { createClaudeCodeRuntime } from "@kontourai/relay/claude-code";
+import { createCodexRuntime } from "@kontourai/relay/codex";
 import { FakeModelRuntime, ModelInvocationError, type ModelInvocationResult, type ModelRuntime } from "@kontourai/relay";
 import { dispatch, dispatchBatch, executionPlanDigest, type DispatchReceipt, type ExecutionPlan, type RuntimeRegistry } from "../src/index.js";
 
@@ -201,4 +206,68 @@ describe("attempt model identity", () => {
     assert.equal(stored.attempts[0]!.model, undefined);
     assert.equal(stored.attempts[0]!.modelSource, undefined);
   });
+});
+
+describe("fallback from a Relay CLI runtime that hit a usage limit", () => {
+  // Fixture executables stand in for the real CLIs and print what each one
+  // reports when its usage limit is reached: Claude Code an error result on
+  // stdout (stderr empty), Codex `error` and `turn.failed` JSON events. Relay's
+  // own codecs classify the output, so the error reaching the engine is
+  // whatever Relay decides, not a hand-built one.
+  let fixtures: string;
+  const executable = async (name: string, stdout: string): Promise<string> => {
+    const file = join(fixtures, name);
+    await writeFile(`${file}.stdout`, `${stdout}\n`);
+    await writeFile(file, `#!/bin/sh\ncat >/dev/null\ncat "${file}.stdout"\nexit 1\n`);
+    await chmod(file, 0o755);
+    return file;
+  };
+  before(async () => { fixtures = await mkdtemp(join(tmpdir(), "dispatch-cli-limit-")); });
+  after(async () => { await rm(fixtures, { recursive: true, force: true }); });
+
+  const cases: readonly { label: string; runtime: () => Promise<ModelRuntime> }[] = [
+    {
+      label: "Claude Code",
+      runtime: async () => createClaudeCodeRuntime({
+        model: "fixture-model",
+        executable: await executable("claude", JSON.stringify({
+          type: "result", subtype: "success", is_error: true, api_error_status: 429,
+          result: "You've hit your session limit · resets 3pm",
+        })),
+      }),
+    },
+    {
+      label: "Codex",
+      runtime: async () => createCodexRuntime({
+        model: "fixture-model",
+        executable: await executable("codex", [
+          JSON.stringify({ type: "error", message: "You've hit your usage limit. Try again in 2 hours." }),
+          JSON.stringify({ type: "turn.failed", error: { message: "You've hit your usage limit. Try again in 2 hours." } }),
+        ].join("\n")),
+      }),
+    },
+  ];
+
+  for (const { label, runtime } of cases) {
+    it(`falls back to the next candidate under the default policy after ${label} reports a usage limit`, async () => {
+      const plan: ExecutionPlan = {
+        ...basePlan,
+        candidates: [
+          { id: "cli", runtimeId: "cli", evidence: { level: "confirmed", capabilities: ["tools"] } },
+          { id: "fallback", runtimeId: "fallback", evidence: { level: "confirmed", capabilities: ["tools"] } },
+        ],
+      };
+      assert.equal(plan.policy?.retryRuntimeFailures, undefined);
+      const outcome = await dispatch(plan, registry({ cli: await runtime(), fallback: new FakeModelRuntime([success], "fallback") }));
+      assert.deepEqual(
+        outcome.receipt.attempts.map(({ candidateId, outcome, errorCode, retryable }) => ({ candidateId, outcome, errorCode, retryable })),
+        [
+          { candidateId: "cli", outcome: "failed", errorCode: "RATE_LIMITED", retryable: true },
+          { candidateId: "fallback", outcome: "succeeded", errorCode: undefined, retryable: undefined },
+        ],
+      );
+      assert.equal(outcome.receipt.outcome, "succeeded");
+      assert.equal("result" in outcome && outcome.result.outputText, "ok");
+    });
+  }
 });
