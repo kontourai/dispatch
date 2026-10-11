@@ -1,6 +1,7 @@
 dist/
 node_modules/
 *.tgz
+dist-pages/
 .DS_Store
 .kontourai/veritas/evidence/
 .kontourai/veritas/claims/
