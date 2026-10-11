@@ -184,10 +184,11 @@ or `recovery`, and `duplicateInvocationRisk` is `true` for `settle` and
 | `Authorization ledger is malformed or tampered` | `reserve` | The ledger file failed its integrity or schema check. |
 | `Authorization limits changed for an existing ledger` | `reserve` | A plan used an existing authorization id with different `limits`. |
 | `Authorization ledger record limit reached` | `reserve` | The authorization already holds 8,192 reservations. |
-| `Authorization ledger exceeds its size bound` | `reserve` | Writing the ledger would exceed 1 MiB. |
-| `Authorization ledger root must be a real directory` | `reserve` | Thrown by the `FileAuthorizationLedger` constructor when `root` is not a real directory or is a symbolic link. |
+| `Authorization ledger exceeds its size bound` | `reserve` | Writing the ledger would exceed 1 MiB. Every write checks this, so a settle or release can hit it too. |
+| `Authorization ledger root must be a real directory` | `reserve` | Thrown by the `FileAuthorizationLedger` constructor when `root` is a symbolic link to a directory. If `root` is a regular file, or a link to one, the constructor throws the filesystem's raw `EEXIST` error instead. |
 
-The phases above are for errors raised while reserving. Any ledger error
-raised while settling a successful attempt, including a lock timeout or a
-malformed ledger, reaches the caller as `Provider invocation completed but
+The phases above are for errors raised while reserving. The record limit is
+checked only when a new reservation is added. Any ledger error raised while
+settling a successful attempt, including a lock timeout, a malformed ledger,
+or the size bound, reaches the caller as `Provider invocation completed but
 authorization settlement failed` with phase `settle`.

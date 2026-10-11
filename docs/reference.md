@@ -227,7 +227,7 @@ A `CapabilityEvidenceSource` has one method,
 | `totalTokens` | `number` | Sum over attempts. |
 | `estimatedCostUsd` | `number` | Sum over attempts. |
 | `physicalBatch` | `{ operationId; itemIndex; itemCount }` | Only for items of a physical batch. `itemIndex` is the position in the native call, not in the caller's array. |
-| `authorization` | `{ id; invocationId; outcome: "reserved" \| "settled" \| "exhausted" }` | Only when the plan has an authorization and at least one attempt holds a reservation, or the authorization was exhausted. An `aborted` receipt for a run that ends between attempts, or after a reservation and before its call, has no `authorization` field. |
+| `authorization` | `{ id; invocationId; outcome: "reserved" \| "settled" \| "exhausted" }` | Set only when the run ends because of an attempt: after an attempt's result or error, when the candidates run out, or when the ledger refuses a reservation (`outcome: "exhausted"`). It is then present if any attempt holds a reservation. A run that ends at the check before an attempt (the abort signal has fired or a budget limit is already reached) has no `authorization` field, even when an earlier attempt holds a reservation. A physical-batch item has the field whenever any of its attempts holds a reservation or its reservation was refused. |
 
 ### DispatchAttemptReceipt
 
