@@ -214,7 +214,9 @@ have a `maxBatchSize` at least as large as the batch. Otherwise
 `dispatchBatch()` throws an `INVALID_REQUEST` error without invoking anything.
 
 Each item is reserved before the call, and an item whose authorization is
-exhausted is left out of the call with outcome `budget-exceeded`. After the
+exhausted is left out of the call with outcome `budget-exceeded`. If any other
+reservation fails, or the abort signal fires before the call, the reservations
+already made are released with reason `confirmed-not-launched`. After the
 call, each item is handled on its own: successful items settle independently,
 and a failed item continues through its plan's remaining eligible candidates
 as single invocations, under the same retry rules as `dispatch()`. If the

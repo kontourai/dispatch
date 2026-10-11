@@ -101,13 +101,24 @@ The [reference](reference.md#cli) lists every CLI option and exit code.
 `dispatch(plan, runtimes, options?)` is the same operation as the CLI. The
 second argument is a `RuntimeRegistry`, any object with a
 `get(runtimeId)` method that returns a Relay `ModelRuntime` or `undefined`.
-This example uses Relay's Anthropic-compatible runtime:
+This example uses Relay's Anthropic-compatible runtime. That runtime needs the
+`@anthropic-ai/sdk` package, an optional peer dependency of Relay, and an API
+key passed as `apiKey` or set in `ANTHROPIC_API_KEY`. Without a key, every
+attempt fails with `AUTHENTICATION_FAILED`.
+
+```sh
+npm install @kontourai/relay @anthropic-ai/sdk
+```
+
 
 ```ts
 import { dispatch } from "@kontourai/dispatch";
 import { createAnthropicRuntime } from "@kontourai/relay/anthropic";
 
-const runtime = createAnthropicRuntime({ model: "configured-model" });
+const runtime = createAnthropicRuntime({
+  model: "configured-model",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 const outcome = await dispatch({
   schemaVersion: 1,

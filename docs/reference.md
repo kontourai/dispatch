@@ -73,8 +73,10 @@ request it receives.
 | `onReceiptDeliveryFailure` | Called with the `ReceiptDeliveryError` when `onReceipt` throws. Errors from this callback are ignored. |
 
 `invokeBatch()` accepts between 1 and `maxBatchSize` requests and runs
-`dispatchBatch()`. Every receipt is delivered; if any delivery fails, the
-first `ReceiptDeliveryError` is thrown after all of them have been attempted.
+`dispatchBatch()`. Every receipt is delivered. In `fail-closed` mode, if any
+delivery fails, the first `ReceiptDeliveryError` is thrown after all of them
+have been attempted; in `best-effort` mode the outcomes are returned
+normally.
 
 When an invocation ends without a result, `invoke()` throws
 `DispatchRuntimeError`. Its `code` and `retryable` depend on the receipt's
@@ -90,7 +92,9 @@ outcome:
 For `exhausted`, a failed attempt whose code is Dispatch's own, such as
 `RUNTIME_NOT_FOUND`, counts as non-retryable and surfaces as
 `PROVIDER_UNAVAILABLE`, because a missing runtime is a configuration error
-that an outer retry would meet again. An `exhausted` receipt with no failed
+that an outer retry would meet again. The receipt still records that attempt
+with `retryable: true`, which is what lets `dispatch()` move on to the next
+candidate. An `exhausted` receipt with no failed
 attempts maps to `PROVIDER_UNAVAILABLE`, non-retryable. Batch items rejected
 by Dispatch carry the same `code` and `retryable`.
 
@@ -137,10 +141,10 @@ unchanged. The order is preserved.
 executionPlanDigest(plan: ExecutionPlan): string
 ```
 
-Returns the hex SHA-256 used as the receipt's `planDigest`. It covers
-`schemaVersion`, `role`, the request's digest (not the request itself),
-`candidates`, `budget`, `policy`, and `authorization`, serialized as
-canonical JSON.
+Returns the hex SHA-256 used as the receipt's `planDigest`. It hashes the
+prefix `dispatch:execution-plan:v1` and a NUL byte, followed by canonical JSON
+of `schemaVersion`, `role`, the request's digest (not the request itself),
+`candidates`, `budget`, `policy`, and `authorization`.
 
 ### DISPATCH_RECEIPT_SCHEMA_VERSION
 
@@ -223,7 +227,7 @@ A `CapabilityEvidenceSource` has one method,
 | `totalTokens` | `number` | Sum over attempts. |
 | `estimatedCostUsd` | `number` | Sum over attempts. |
 | `physicalBatch` | `{ operationId; itemIndex; itemCount }` | Only for items of a physical batch. `itemIndex` is the position in the native call, not in the caller's array. |
-| `authorization` | `{ id; invocationId; outcome: "reserved" \| "settled" \| "exhausted" }` | Only when the plan has an authorization and at least one attempt holds a reservation, or the authorization was exhausted. |
+| `authorization` | `{ id; invocationId; outcome: "reserved" \| "settled" \| "exhausted" }` | Only when the plan has an authorization and at least one attempt holds a reservation, or the authorization was exhausted. An `aborted` receipt for a run that ends between attempts, or after a reservation and before its call, has no `authorization` field. |
 
 ### DispatchAttemptReceipt
 
@@ -269,7 +273,9 @@ Maps the output of Datum's `resolveRef()` to `{ candidate, target }`:
 The `runtimeId` defaults to `datum:<provider>:<model>:<digest>`, where
 `<digest>` is the first 12 hex characters of a SHA-256 of the `baseUrl` (or
 of `default` when there is none). `options` can set `id`, `runtimeId`,
-`evidence`, and `estimatedUsdPer1kTokens`. An empty `role` throws
+`evidence`, and `estimatedUsdPer1kTokens`; the candidate never carries a
+`worstCaseUsage`, so add one yourself before using it under an authorization
+with token or cost limits. An empty `role` throws
 `TypeError`. The function does not create or invoke a runtime.
 
 ## Bearing entrypoint
@@ -306,7 +312,7 @@ Wraps AI SDK v3 language models as Relay runtimes, routes between them with
 | --- | --- |
 | `id`, `capabilities`, `plan` | As in `createDispatchRuntime`. |
 | `models` | AI SDK models keyed by runtime id. Plan candidates refer to these keys through `runtimeId`. |
-| `provider`, `modelId` | Optional identity for the returned model. |
+| `provider`, `modelId` | Optional identity for the returned model. They default to `"relay"` and to `id`. |
 | `onReceipt`, `authorizationLedger`, `receiptDeliveryFailureMode`, `onReceiptDeliveryFailure` | As in `createDispatchRuntime`. |
 
 If a plan names a `runtimeId` that is not a key of `models`, the invocation

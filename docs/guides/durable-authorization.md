@@ -45,7 +45,7 @@ Every call that should draw on the same capacity uses the same
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `root` | required | Directory for ledger files. Created with mode `0700` if missing. It must be a real directory, not a symbolic link. |
+| `root` | required | Directory for ledger files. It is created if missing and its mode is set to `0700`, also when it already exists. It must be a real directory, not a symbolic link. |
 | `lockTimeoutMs` | `5000` | How long to wait for another process's lock before failing. |
 | `now` | `() => new Date()` | Clock used for the timestamps in ledger records. |
 
@@ -67,8 +67,11 @@ Dispatch validates the authorization before any attempt and throws a
   `worstCaseUsage.maxTokens`. If they include `maxCostUsd`, every candidate
   must set `worstCaseUsage.maxCostUsd`.
 
-A plan with an `authorization` but no `authorizationLedger` in the options
-throws `AuthorizationPersistenceError` before invoking anything.
+A plan with an `authorization` needs an `authorizationLedger` in the options.
+Without one, `dispatch()` throws `AuthorizationPersistenceError` when it
+reaches the first candidate it would invoke, before calling it. A run that
+never reaches such a candidate, for example because no candidate is eligible
+or no runtime is registered, ends with its ordinary receipt instead.
 
 ## How capacity is counted
 
@@ -105,6 +108,10 @@ same `invocationId` therefore asks for a reservation that already exists. The
 ledger reports it as already reserved, settled, or released, and Dispatch
 throws `AuthorizationPersistenceError` instead of calling the provider again,
 because the earlier call may already have happened.
+
+The reservation id does not include the candidate's `worstCaseUsage`. If the
+same invocation is run again with a different worst case, the ledger refuses
+it with `Reservation id was reused with different capacity`.
 
 If your host retries a failed call from outside Dispatch, give each retry a
 fresh `invocationId`. This matters most with `createDispatchRuntime()`, where
@@ -170,9 +177,17 @@ or `recovery`, and `duplicateInvocationRisk` is `true` for `settle` and
 | Message | Phase | Cause |
 | --- | --- | --- |
 | `Execution authorization requires an authorization ledger` | `reserve` | The plan has an `authorization` but no ledger was passed. |
+| `Reservation id was reused with different capacity` | `reserve` | The same `invocationId` was run again with a different `worstCaseUsage`. |
 | `Authorization reservation already exists; automatic provider replay is refused` | `recovery` | The same `invocationId` was run again. Use a fresh one, or reconcile and release. |
 | `Provider invocation completed but authorization settlement failed` | `settle` | The provider returned a result but the ledger could not settle it, for example because measured usage exceeded the reserved worst case. Do not repeat the call blindly. |
 | `Authorization ledger lock timed out` | `reserve` | Another process held the lock longer than `lockTimeoutMs`, or a stale lock file remains. |
 | `Authorization ledger is malformed or tampered` | `reserve` | The ledger file failed its integrity or schema check. |
 | `Authorization limits changed for an existing ledger` | `reserve` | A plan used an existing authorization id with different `limits`. |
 | `Authorization ledger record limit reached` | `reserve` | The authorization already holds 8,192 reservations. |
+| `Authorization ledger exceeds its size bound` | `reserve` | Writing the ledger would exceed 1 MiB. |
+| `Authorization ledger root must be a real directory` | `reserve` | Thrown by the `FileAuthorizationLedger` constructor when `root` is not a real directory or is a symbolic link. |
+
+The phases above are for errors raised while reserving. Any ledger error
+raised while settling a successful attempt, including a lock timeout or a
+malformed ledger, reaches the caller as `Provider invocation completed but
+authorization settlement failed` with phase `settle`.
