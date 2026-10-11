@@ -92,9 +92,9 @@ outcome:
 For `exhausted`, a failed attempt whose code is Dispatch's own, such as
 `RUNTIME_NOT_FOUND`, counts as non-retryable and surfaces as
 `PROVIDER_UNAVAILABLE`, because a missing runtime is a configuration error
-that an outer retry would meet again. The receipt still records that attempt
-with `retryable: true`, which is what lets `dispatch()` move on to the next
-candidate. An `exhausted` receipt with no failed
+that an outer retry would meet again. The receipt records that attempt with
+`retryable: false` as well; `dispatch()` moves on to the next candidate after
+a missing runtime regardless of that flag. An `exhausted` receipt with no failed
 attempts maps to `PROVIDER_UNAVAILABLE`, non-retryable. Batch items rejected
 by Dispatch carry the same `code` and `retryable`.
 

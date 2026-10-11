@@ -137,7 +137,7 @@ describe("Dispatch Relay runtime", () => {
       [`rt${String(index)}`, new FakeModelRuntime([{ code: failure[0], message: failure[0], retryable: failure[1] }], `rt${String(index)}`)] as const]));
     return { get: (id: string) => runtimes.get(id) };
   };
-  const recorded = (failures: readonly Failure[]) => failures.map((failure) => failure === "missing" ? ["RUNTIME_NOT_FOUND", true] : [...failure]);
+  const recorded = (failures: readonly Failure[]) => failures.map((failure) => failure === "missing" ? ["RUNTIME_NOT_FOUND", false] : [...failure]);
 
   for (const { label, failures, retryRuntimeFailures, code, retryable } of exhaustionCases) {
     it(`summarises the failed attempts on an exhausted invocation: ${label}`, async () => {

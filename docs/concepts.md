@@ -110,7 +110,10 @@ candidate:
    `maxCostUsd`, the run ends `budget-exceeded`.
 3. **Runtime lookup.** If the registry has no runtime for `runtimeId`, the
    attempt is recorded as failed with `errorCode: "RUNTIME_NOT_FOUND"` and
-   Dispatch moves on. This uses one of the `maxAttempts`.
+   `retryable: false`, because retrying meets the same missing runtime.
+   Dispatch still moves on to the next candidate, with or without
+   `policy.retryRuntimeFailures`, since nothing was invoked. This uses one of
+   the `maxAttempts`.
 4. **Reservation.** With an `authorization`, Dispatch reserves the
    candidate's worst case in the ledger first. See
    [execution authorization](#execution-authorization).

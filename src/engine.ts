@@ -114,7 +114,11 @@ export async function dispatch(plan: ExecutionPlan, runtimes: RuntimeRegistry, o
     const runtime = runtimes.get(candidate.runtimeId);
     const attemptStarted = now();
     if (!runtime) {
-      attempts.push(Object.freeze({ ...attemptIdentity(candidate), outcome: "failed", elapsedMs: 0, errorCode: "RUNTIME_NOT_FOUND", retryable: true }));
+      // A registry miss is a host configuration error that a retry meets again,
+      // so it is recorded as non-retryable, matching DispatchRuntimeError. The
+      // run still moves on to the next candidate whatever the flag says:
+      // nothing was invoked, so there is no provider failure to stop on.
+      attempts.push(Object.freeze({ ...attemptIdentity(candidate), outcome: "failed", elapsedMs: 0, errorCode: "RUNTIME_NOT_FOUND", retryable: false }));
       continue;
     }
     const reservation = reservationFor(plan, candidate, attempts.length + 1);
