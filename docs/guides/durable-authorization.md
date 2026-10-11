@@ -185,7 +185,7 @@ or `recovery`, and `duplicateInvocationRisk` is `true` for `settle` and
 | `Authorization limits changed for an existing ledger` | `reserve` | A plan used an existing authorization id with different `limits`. |
 | `Authorization ledger record limit reached` | `reserve` | The authorization already holds 8,192 reservations. |
 | `Authorization ledger exceeds its size bound` | `reserve` | Writing the ledger would exceed 1 MiB. Every write checks this, so a settle or release can hit it too. |
-| `Authorization ledger root must be a real directory` | `reserve` | Thrown by the `FileAuthorizationLedger` constructor when `root` is a symbolic link to a directory. If `root` is a regular file, or a link to one, the constructor throws the filesystem's raw `EEXIST` error instead. |
+| `Authorization ledger root must be a real directory` | `reserve` | Thrown by the `FileAuthorizationLedger` constructor when `root` is a symbolic link to a directory. If `root` is a regular file, or a link to one, the constructor throws the filesystem's raw `EEXIST` error instead, and a link to a missing target gives a raw `ENOENT`. |
 
 The phases above are for errors raised while reserving. The record limit is
 checked only when a new reservation is added. Any ledger error raised while
