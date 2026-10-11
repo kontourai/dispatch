@@ -186,7 +186,10 @@ The constant `1`, the current `DispatchReceipt` schema version.
 Any other value, including `NaN`, `Infinity`, a string, or a negative number,
 makes `dispatch()` and `dispatchBatch()` throw
 `TypeError("Invalid execution plan: budget.<field> must be ...")` before any
-runtime is invoked. Omit a limit to leave it unbounded.
+runtime is invoked. Omit a limit to leave it unbounded; `Infinity`, which
+earlier versions accepted as "unbounded", is now refused. See
+[execution plans](concepts.md#execution-plan) for migrating other values that
+earlier versions accepted.
 
 ### ExecutionPolicy
 
