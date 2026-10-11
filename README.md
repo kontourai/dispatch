@@ -133,7 +133,11 @@ runtime.
 import { resolveRef } from "@kontourai/datum";
 import { bindDatumResolvedRef } from "@kontourai/dispatch/datum";
 
-const binding = bindDatumResolvedRef("structured-worker", resolveRef("structured-worker"));
+const binding = bindDatumResolvedRef("structured-worker", resolveRef("structured-worker"), {
+  // Datum resolves no token or cost limits, so the host supplies the worst case
+  // that a token- or cost-bounded authorization reserves.
+  worstCaseUsage: { maxTokens: 2_000, maxCostUsd: 0.20 },
+});
 ```
 
 ## Credential-free CLI

@@ -65,7 +65,11 @@ Dispatch validates the authorization before any attempt and throws a
   number.
 - If the limits include `maxTotalTokens`, every candidate must set
   `worstCaseUsage.maxTokens`. If they include `maxCostUsd`, every candidate
-  must set `worstCaseUsage.maxCostUsd`.
+  must set `worstCaseUsage.maxCostUsd`. Otherwise `dispatch()` throws a
+  `TypeError` naming the candidates and the field, for example
+  `Token-bounded authorization requires candidate worst-case token capacity: set worstCaseUsage.maxTokens on candidate "worker"`.
+  Candidates built with `bindDatumResolvedRef()` get one only from its
+  `worstCaseUsage` option.
 
 A plan with an `authorization` needs an `authorizationLedger` in the options.
 Without one, `dispatch()` throws `AuthorizationPersistenceError` when it
