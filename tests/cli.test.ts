@@ -34,6 +34,13 @@ describe("Dispatch CLI", () => {
     assert.equal(JSON.parse(completed.stdout).result.outputText, "ok");
   });
 
+  it("refuses an invalid budget with the field name and exit 1", () => {
+    const completed = run("fixture", "fixtures", { runtimes: { runtime: [result] } }, { ...plan, budget: { maxAttempts: 1.5 } });
+    assert.equal(completed.status, 1, completed.stdout);
+    assert.equal(completed.stdout, "");
+    assert.match(completed.stderr, /^dispatch: Invalid execution plan: budget\.maxAttempts must be an integer of at least 1\n$/);
+  });
+
   it("records a missing runtime as non-retryable and still falls back to the next candidate", () => {
     const fallbackPlan = { ...plan, candidates: [{ id: "missing", runtimeId: "missing" }, { id: "one", runtimeId: "runtime" }], budget: { maxAttempts: 2 } };
     const completed = run("fixture", "fixtures", { runtimes: { runtime: [result] } }, fallbackPlan);

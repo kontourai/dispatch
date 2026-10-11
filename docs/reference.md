@@ -178,10 +178,18 @@ The constant `1`, the current `DispatchReceipt` schema version.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `maxAttempts` | `number` | At least `1`. The most candidates tried. |
-| `maxElapsedMs` | `number` | Optional. |
-| `maxTotalTokens` | `number` | Optional. Measured across attempts. |
-| `maxCostUsd` | `number` | Optional. Estimated across attempts. |
+| `maxAttempts` | `number` | An integer of at least `1`. The most candidates tried. |
+| `maxElapsedMs` | `number` | Optional. A finite number of at least `0`. |
+| `maxTotalTokens` | `number` | Optional. An integer of at least `0`. Measured across attempts. |
+| `maxCostUsd` | `number` | Optional. A finite number of at least `0`. Estimated across attempts. |
+
+Any other value, including `NaN`, `Infinity`, a string, or a negative number,
+makes `dispatch()` and `dispatchBatch()` throw
+`TypeError("Invalid execution plan: budget.<field> must be ...")` before any
+runtime is invoked. Omit a limit to leave it unbounded; `Infinity`, which
+earlier versions accepted as "unbounded", is now refused. See
+[execution plans](concepts.md#execution-plan) for migrating other values that
+earlier versions accepted.
 
 ### ExecutionPolicy
 

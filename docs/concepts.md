@@ -37,9 +37,30 @@ An `ExecutionPlan` is the immutable input to one run:
 - `authorization` (optional): durable capacity shared with other runs. See
   [execution authorization](#execution-authorization).
 
-A plan with a `schemaVersion` other than `1`, an empty `role`, or
-`budget.maxAttempts` below `1` is rejected with
-`TypeError("Invalid execution plan")` before anything runs.
+A plan with a `schemaVersion` other than `1` or an empty `role` is rejected
+with `TypeError("Invalid execution plan")` before anything runs. An invalid
+budget field is rejected the same way, with a message naming the field, such
+as `Invalid execution plan: budget.maxAttempts must be an integer of at least
+1`:
+
+- `maxAttempts` must be an integer of at least `1`.
+- `maxTotalTokens`, when set, must be an integer of at least `0`.
+- `maxElapsedMs` and `maxCostUsd`, when set, must be finite numbers of at
+  least `0`.
+
+`NaN`, `Infinity`, strings, and negative values are all refused. To leave a
+limit unbounded, omit it. A limit of `0` ends the run `budget-exceeded` before
+the first attempt.
+
+Earlier versions ran several of these values. If you are upgrading:
+
+- `maxElapsedMs: Infinity` or `maxCostUsd: Infinity` meant "unbounded". Omit
+  the field instead.
+- A fractional `maxAttempts` such as `1.5` was truncated to `1`. Pass the
+  integer you mean.
+- A numeric string such as `"2"` was coerced. Pass a number.
+- A negative limit ended the run `budget-exceeded` before the first attempt.
+  Use `0` for that.
 
 ## Candidates and the runtime registry
 
