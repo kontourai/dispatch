@@ -40,4 +40,14 @@ describe("Dispatch CLI", () => {
     assert.equal(completed.stdout, "");
     assert.match(completed.stderr, /^dispatch: Invalid execution plan: budget\.maxAttempts must be an integer of at least 1\n$/);
   });
+
+  it("records a missing runtime as non-retryable and still falls back to the next candidate", () => {
+    const fallbackPlan = { ...plan, candidates: [{ id: "missing", runtimeId: "missing" }, { id: "one", runtimeId: "runtime" }], budget: { maxAttempts: 2 } };
+    const completed = run("fixture", "fixtures", { runtimes: { runtime: [result] } }, fallbackPlan);
+    assert.equal(completed.status, 0, completed.stderr);
+    const { receipt } = JSON.parse(completed.stdout);
+    assert.equal(receipt.outcome, "succeeded");
+    assert.deepEqual(receipt.attempts.map((attempt: { candidateId: string; errorCode?: string; retryable?: boolean }) =>
+      [attempt.candidateId, attempt.errorCode, attempt.retryable]), [["missing", "RUNTIME_NOT_FOUND", false], ["one", undefined, undefined]]);
+  });
 });
