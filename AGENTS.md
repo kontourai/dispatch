@@ -15,6 +15,9 @@ Dispatch is a provider-neutral policy and execution layer.
 - Run `npm run verify` before pushing. Scripts stay on `npm run …` — that only
   invokes `package.json` scripts and does not depend on which tool installed
   `node_modules`.
+- Docs are published with docs-kit: `docs-kit.json` lists the published docs
+  and the MCP topics, and `npm run docs:check` is the gate. When you change
+  code that a document `covers`, update that document.
 
 <!-- veritas:governance-block:start -->
 This repo uses Veritas for AI governance. Read `.veritas/GOVERNANCE.md` before making changes.
