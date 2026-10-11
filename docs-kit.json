@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "product": "dispatch",
+  "title": "Dispatch",
+  "tagline": "Policy-aware model execution with portable routing, budgets, fallbacks, and receipts",
+  "repo": "kontourai/dispatch",
+  "landing": "README.md",
+  "documents": [
+    { "source": "docs/getting-started.md", "section": "Start Here" },
+    { "source": "docs/concepts.md", "section": "Concepts" },
+    { "source": "CONTEXT.md", "section": "Concepts" },
+    { "source": "docs/guides/durable-authorization.md", "section": "Guides" },
+    {
+      "source": "docs/reference.md",
+      "section": "Reference",
+      "covers": ["src/index.ts", "src/cli.ts", "bin/dispatch.mjs"]
+    },
+    { "source": "AGENTS.md", "section": "Contribute" }
+  ],
+  "topics": [
+    { "id": "quickstart", "title": "Run a plan without credentials", "source": "docs/getting-started.md#run-a-plan-without-credentials" },
+    { "id": "boundaries", "title": "What Dispatch owns and what it does not", "source": "docs/concepts.md#ownership-boundaries" },
+    { "id": "execution-plan", "title": "Execution plans", "source": "docs/concepts.md#execution-plan" },
+    { "id": "eligibility", "title": "Capability evidence and candidate eligibility", "source": "docs/concepts.md#capability-evidence-and-eligibility" },
+    { "id": "routing", "title": "How a dispatch run proceeds: fallback, budgets, and retries", "source": "docs/concepts.md#how-a-run-proceeds" },
+    { "id": "receipts", "title": "Dispatch receipts", "source": "docs/concepts.md#receipts" },
+    { "id": "physical-batches", "title": "Physical batches", "source": "docs/concepts.md#physical-batches" },
+    { "id": "integrations", "title": "Relay, Datum, Bearing, and AI SDK integrations", "source": "docs/concepts.md#integrations" },
+    { "id": "durable-authorization", "title": "Durable authorization capacity accounting", "source": "docs/guides/durable-authorization.md#how-capacity-is-counted" },
+    { "id": "authorization-recovery", "title": "Releasing held authorization capacity", "source": "docs/guides/durable-authorization.md#releasing-held-capacity" },
+    { "id": "troubleshooting", "title": "Authorization errors and their causes", "source": "docs/guides/durable-authorization.md#errors" },
+    { "id": "dispatch-runtime", "title": "createDispatchRuntime and DispatchRuntimeError", "source": "docs/reference.md#createdispatchruntime" },
+    { "id": "plan-schema", "title": "Plan, policy, and receipt types", "source": "docs/reference.md#types" },
+    { "id": "cli", "title": "dispatch CLI", "source": "docs/reference.md#cli" }
+  ],
+  "exclude": []
+}
