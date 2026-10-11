@@ -238,7 +238,9 @@ is an optional entrypoint behind an optional peer dependency.
 - **Datum**: `bindDatumResolvedRef()` in `@kontourai/dispatch/datum` turns
   Datum's `resolveRef()` output into a candidate and a host-facing runtime
   target. It reads auth references and availability, never credential values,
-  and it does not create a runtime.
+  and it does not create a runtime. Datum resolves no token or cost limits, so
+  under a token- or cost-bounded authorization the host passes
+  `worstCaseUsage` when binding.
 - **Bearing**: `capabilityEvidenceFromBearing()` in
   `@kontourai/dispatch/bearing` projects a Bearing ranked candidate into
   `confirmed`, `declared`, or `unavailable` evidence. Bearing remains the
