@@ -271,3 +271,57 @@ describe("fallback from a Relay CLI runtime that hit a usage limit", () => {
     });
   }
 });
+
+describe("plan budget validation", () => {
+  // Each value used to reach the loop: NaN maxAttempts skipped every candidate,
+  // and NaN/Infinity limits compared false and so never bounded anything.
+  const invalidBudgets: ReadonlyArray<[string, Record<string, unknown>, RegExp]> = [
+    ["NaN maxAttempts", { maxAttempts: Number.NaN }, /budget\.maxAttempts must be an integer of at least 1/],
+    ["Infinity maxAttempts", { maxAttempts: Number.POSITIVE_INFINITY }, /budget\.maxAttempts/],
+    ["fractional maxAttempts", { maxAttempts: 1.5 }, /budget\.maxAttempts/],
+    ["string maxAttempts", { maxAttempts: "2" }, /budget\.maxAttempts/],
+    ["zero maxAttempts", { maxAttempts: 0 }, /budget\.maxAttempts/],
+    ["NaN maxElapsedMs", { maxAttempts: 1, maxElapsedMs: Number.NaN }, /budget\.maxElapsedMs must be a finite number of at least 0/],
+    ["Infinity maxElapsedMs", { maxAttempts: 1, maxElapsedMs: Number.POSITIVE_INFINITY }, /budget\.maxElapsedMs/],
+    ["negative maxElapsedMs", { maxAttempts: 1, maxElapsedMs: -1 }, /budget\.maxElapsedMs/],
+    ["NaN maxTotalTokens", { maxAttempts: 1, maxTotalTokens: Number.NaN }, /budget\.maxTotalTokens must be an integer of at least 0/],
+    ["fractional maxTotalTokens", { maxAttempts: 1, maxTotalTokens: 2.5 }, /budget\.maxTotalTokens/],
+    ["negative maxTotalTokens", { maxAttempts: 1, maxTotalTokens: -1 }, /budget\.maxTotalTokens/],
+    ["NaN maxCostUsd", { maxAttempts: 1, maxCostUsd: Number.NaN }, /budget\.maxCostUsd must be a finite number of at least 0/],
+    ["Infinity maxCostUsd", { maxAttempts: 1, maxCostUsd: Number.POSITIVE_INFINITY }, /budget\.maxCostUsd/],
+    ["negative maxCostUsd", { maxAttempts: 1, maxCostUsd: -0.01 }, /budget\.maxCostUsd/],
+    ["string maxCostUsd", { maxAttempts: 1, maxCostUsd: "1" }, /budget\.maxCostUsd/],
+  ];
+
+  for (const [name, budget, message] of invalidBudgets) {
+    it(`refuses ${name} before invoking any runtime`, async () => {
+      let invocations = 0;
+      const counting: ModelRuntime = {
+        id: "primary", capabilities: () => ({ structuredTools: true, streaming: false, abort: true, usage: true }),
+        async invoke() { invocations++; return success; },
+      };
+      const plan = { ...basePlan, budget } as unknown as ExecutionPlan;
+      await assert.rejects(dispatch(plan, registry({ primary: counting })), (error: unknown) =>
+        error instanceof TypeError && message.test(error.message));
+      await assert.rejects(dispatchBatch([plan], registry({ primary: counting })), (error: unknown) =>
+        error instanceof TypeError && message.test(error.message));
+      assert.equal(invocations, 0);
+    });
+  }
+
+  it("refuses a missing budget", async () => {
+    const { budget: _omitted, ...plan } = basePlan;
+    await assert.rejects(dispatch(plan as ExecutionPlan, registry({})), /Invalid execution plan: budget must be an object/);
+  });
+
+  it("still accepts zero limits, which end the run budget-exceeded without invoking", async () => {
+    let invocations = 0;
+    const counting: ModelRuntime = {
+      id: "primary", capabilities: () => ({ structuredTools: true, streaming: false, abort: true, usage: true }),
+      async invoke() { invocations++; return success; },
+    };
+    const outcome = await dispatch({ ...basePlan, budget: { maxAttempts: 1, maxTotalTokens: 0, maxCostUsd: 0, maxElapsedMs: 0 } }, registry({ primary: counting }));
+    assert.equal(outcome.receipt.outcome, "budget-exceeded");
+    assert.equal(invocations, 0);
+  });
+});

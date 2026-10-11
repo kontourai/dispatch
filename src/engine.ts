@@ -440,10 +440,39 @@ export async function dispatchBatch(
 }
 
 function validatePlan(plan: ExecutionPlan): void {
-  if (plan.schemaVersion !== 1 || !plan.role || plan.budget.maxAttempts < 1) {
+  if (plan.schemaVersion !== 1 || !plan.role) {
     throw new TypeError("Invalid execution plan");
   }
+  validateBudget(plan.budget);
   validateAuthorizationPlan(plan);
+}
+
+/**
+ * Budget limits are compared with `>=`/`>` and passed to `slice`, so NaN,
+ * Infinity, strings, or fractions would silently disable a limit or skip every
+ * candidate. Each field is refused by name instead.
+ */
+function validateBudget(budget: ExecutionPlan["budget"]): void {
+  const invalid = (field: string, requirement: string) =>
+    new TypeError(`Invalid execution plan: budget.${field} must be ${requirement}`);
+  if (budget === null || typeof budget !== "object") {
+    throw new TypeError("Invalid execution plan: budget must be an object");
+  }
+  if (!Number.isSafeInteger(budget.maxAttempts) || budget.maxAttempts < 1) {
+    throw invalid("maxAttempts", "an integer of at least 1");
+  }
+  if (budget.maxElapsedMs !== undefined
+    && (!Number.isFinite(budget.maxElapsedMs) || budget.maxElapsedMs < 0)) {
+    throw invalid("maxElapsedMs", "a finite number of at least 0");
+  }
+  if (budget.maxTotalTokens !== undefined
+    && (!Number.isSafeInteger(budget.maxTotalTokens) || budget.maxTotalTokens < 0)) {
+    throw invalid("maxTotalTokens", "an integer of at least 0");
+  }
+  if (budget.maxCostUsd !== undefined
+    && (!Number.isFinite(budget.maxCostUsd) || budget.maxCostUsd < 0)) {
+    throw invalid("maxCostUsd", "a finite number of at least 0");
+  }
 }
 
 function successfulAttempt(
