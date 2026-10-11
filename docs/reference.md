@@ -273,9 +273,11 @@ Maps the output of Datum's `resolveRef()` to `{ candidate, target }`:
 The `runtimeId` defaults to `datum:<provider>:<model>:<digest>`, where
 `<digest>` is the first 12 hex characters of a SHA-256 of the `baseUrl` (or
 of `default` when there is none). `options` can set `id`, `runtimeId`,
-`evidence`, and `estimatedUsdPer1kTokens`; the candidate never carries a
-`worstCaseUsage`, so add one yourself before using it under an authorization
-with token or cost limits. An empty `role` throws
+`evidence`, `estimatedUsdPer1kTokens`, and `worstCaseUsage`. Datum's
+`ResolvedRef` carries no token or cost limits, so `worstCaseUsage` is never
+derived; pass it when the candidate runs under an authorization with token or
+cost limits. Without it, `dispatch()` throws a `TypeError` that names the
+candidate and the missing `worstCaseUsage` field. An empty `role` throws
 `TypeError`. The function does not create or invoke a runtime.
 
 ## Bearing entrypoint

@@ -25,6 +25,12 @@ export interface DatumCandidateOptions {
   runtimeId?: string;
   evidence?: CapabilityEvidence;
   estimatedUsdPer1kTokens?: number;
+  /**
+   * Worst-case capacity to reserve under an execution authorization. Datum's
+   * resolved reference carries no token or cost limits, so only the host can
+   * supply this; it is required when the authorization bounds tokens or cost.
+   */
+  worstCaseUsage?: ExecutionCandidate["worstCaseUsage"];
 }
 
 function derivedRuntimeId(resolved: ResolvedRef): string {
@@ -41,6 +47,7 @@ export function bindDatumResolvedRef(role: string, resolved: ResolvedRef, option
     runtimeId,
     ...(options.evidence === undefined ? {} : { evidence: options.evidence }),
     ...(options.estimatedUsdPer1kTokens === undefined ? {} : { estimatedUsdPer1kTokens: options.estimatedUsdPer1kTokens }),
+    ...(options.worstCaseUsage === undefined ? {} : { worstCaseUsage: Object.freeze({ ...options.worstCaseUsage }) }),
   });
   const target: DatumRuntimeTarget = Object.freeze({
     runtimeId,

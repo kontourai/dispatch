@@ -528,13 +528,25 @@ function validateAuthorizationPlan(plan: ExecutionPlan): void {
       && (!Number.isFinite(authorization.limits.maxCostUsd) || authorization.limits.maxCostUsd <= 0))) {
     throw new TypeError("Invalid execution authorization");
   }
-  if (authorization.limits.maxTotalTokens !== undefined
-    && plan.candidates.some((candidate) => candidate.worstCaseUsage?.maxTokens === undefined)) {
-    throw new TypeError("Token-bounded authorization requires candidate worst-case token capacity");
+  const missing = (field: "maxTokens" | "maxCostUsd") => plan.candidates
+    .filter((candidate) => candidate.worstCaseUsage?.[field] === undefined)
+    .map((candidate) => JSON.stringify(candidate.id))
+    .join(", ");
+  if (authorization.limits.maxTotalTokens !== undefined) {
+    const ids = missing("maxTokens");
+    if (ids) {
+      throw new TypeError(
+        `Token-bounded authorization requires candidate worst-case token capacity: set worstCaseUsage.maxTokens on candidate ${ids}`,
+      );
+    }
   }
-  if (authorization.limits.maxCostUsd !== undefined
-    && plan.candidates.some((candidate) => candidate.worstCaseUsage?.maxCostUsd === undefined)) {
-    throw new TypeError("Cost-bounded authorization requires candidate worst-case cost capacity");
+  if (authorization.limits.maxCostUsd !== undefined) {
+    const ids = missing("maxCostUsd");
+    if (ids) {
+      throw new TypeError(
+        `Cost-bounded authorization requires candidate worst-case cost capacity: set worstCaseUsage.maxCostUsd on candidate ${ids}`,
+      );
+    }
   }
 }
 
