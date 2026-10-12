@@ -1,5 +1,14 @@
 # Dispatch
 
+**Policy-aware model execution with portable routing, budgets, fallbacks, and receipts.**
+
+[![npm version](https://img.shields.io/npm/v/%40kontourai%2Fdispatch)](https://www.npmjs.com/package/@kontourai/dispatch)
+[![CI](https://github.com/kontourai/dispatch/actions/workflows/ci.yml/badge.svg)](https://github.com/kontourai/dispatch/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-kontourai.github.io-blue)](https://kontourai.github.io/dispatch/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+[Documentation](https://kontourai.github.io/dispatch/)
+
 Dispatch executes model work through explicit, portable policy. It resolves a
 role into candidate runtimes, applies capability constraints and budgets,
 invokes through a provider-neutral runtime contract, and returns an auditable
