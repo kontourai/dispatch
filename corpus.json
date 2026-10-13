@@ -1,5 +1,23 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "purpose": "Execute model work under explicit policy with an auditable receipt for every routing decision and attempt.",
+  "builtOn": [
+    {
+      "product": "bearing",
+      "via": "@kontourai/bearing",
+      "for": "Project ranked candidates into execution capability evidence."
+    },
+    {
+      "product": "datum",
+      "via": "@kontourai/datum",
+      "for": "Bind resolved configuration references to credential-free execution candidates."
+    },
+    {
+      "product": "relay",
+      "via": "@kontourai/relay",
+      "for": "Invoke runtimes and canonicalize invocation records for auditable receipts."
+    }
+  ],
   "product": "dispatch",
   "title": "Dispatch",
   "tagline": "Policy-aware model execution with portable routing, budgets, fallbacks, and receipts",
