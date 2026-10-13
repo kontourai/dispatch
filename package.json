@@ -51,7 +51,7 @@
     "docs:build": "npx -y github:kontourai/docs-kit#482fb2e691fe7686f79a9a4da8bc2247384b85c3 docs-kit build"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^3.0.14",
+    "@ai-sdk/provider": "^4.0.26",
     "@kontourai/bearing": "^0.2.0",
     "@kontourai/datum": "^0.8.0",
     "@kontourai/flow-agents": "5.5.0",
