@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { it } from "node:test";
 import {
   FileAuthorizationLedger,
+  AuthorizationPersistenceError,
   type AuthorizationReservation,
   type AuthorizationRecoveryAdmission,
 } from "../src/index.js";
@@ -35,7 +36,9 @@ it("inspects only existing reservations, returns detached evidence, and recovers
   assert.equal(settled.state, "settled");
   assert.deepEqual(settled.usage, usage);
   assert.deepEqual(await reopened.settleChecked({ reservation, usage, admission }), settled);
-  await assert.rejects(reopened.settleChecked({ reservation, usage: { ...usage, totalTokens: 13 }, admission }));
+  assert.deepEqual(await reopened.settleChecked({ reservation, usage: { costUsd: usage.costUsd, totalTokens: usage.totalTokens, attempts: 1 }, admission }), settled);
+  await assert.rejects(reopened.settleChecked({ reservation, usage: { ...usage, totalTokens: 13 }, admission }),
+    (error: unknown) => error instanceof AuthorizationPersistenceError && error.phase === "recovery" && error.duplicateInvocationRisk);
   assert.deepEqual((await reopened.inspectInvocation(reservation))[0], settled);
 });
 
@@ -91,4 +94,18 @@ it("captures recovery input before lease acquisition and refuses revoked publica
   assert.equal(settled.invocationId, reservation.invocationId);
   assert.deepEqual(settled.usage, usage);
   assert.equal(released, 2);
+});
+
+it("classifies a postcommit release failure as recovery risk and exposes the committed settlement on inspection", async () => {
+  const root = await mkdtemp(join(tmpdir(), "dispatch-recovery-ack-"));
+  const ledger = new FileAuthorizationLedger({ root });
+  const reservation = reserved();
+  await ledger.reserve(reservation);
+  await assert.rejects(ledger.settleChecked({ reservation, usage, admission: { async acquire() { return {
+    assertCurrent() {}, release() { throw new Error("host release failed"); },
+  }; } } }), (error: unknown) => error instanceof AuthorizationPersistenceError
+    && error.phase === "recovery" && error.duplicateInvocationRisk);
+  const [observed] = await ledger.inspectInvocation(reservation);
+  assert.equal(observed?.state, "settled");
+  assert.deepEqual(observed?.usage, usage);
 });

@@ -163,27 +163,31 @@ export class FileAuthorizationLedger implements RecoverableAuthorizationLedger {
     validateReservation(reservation);
     const settlement = { authorizationId: reservation.authorizationId, reservationId: reservation.reservationId, usage };
     validateSettlement(settlement);
-    const lease = await admission.acquire();
     try {
-      const assertCurrent = () => {
-        if (lease.assertCurrent() !== undefined) throw new AuthorizationPersistenceError("Authorization recovery check must be synchronous", undefined, "recovery");
-      };
-      assertCurrent();
-      return await this.#withLedger(reservation.authorizationId, (ledger, file) => {
+      const lease = await admission.acquire();
+      try {
+        const assertCurrent = () => {
+          if (lease.assertCurrent() !== undefined) throw new AuthorizationPersistenceError("Authorization recovery check must be synchronous", undefined, "recovery");
+        };
         assertCurrent();
-        const existing = ledger?.reservations[reservation.reservationId];
-        if (!ledger || !existing || existing.invocationId !== reservation.invocationId
-          || canonicalJson(ledger.limits) !== canonicalJson(reservation.limits)
-          || canonicalJson(existing.capacity) !== canonicalJson(reservation.capacity)) {
-          throw new AuthorizationPersistenceError("Authorization recovery reservation mismatch", undefined, "recovery");
-        }
-        const next = settleReservation(ledger, settlement, () => this.#now());
-        assertCurrent();
-        writeLedger(file, next);
-        return reservationSnapshot(next, reservation.reservationId, existing);
-      });
-    } finally {
-      await lease.release();
+        return await this.#withLedger(reservation.authorizationId, (ledger, file) => {
+          assertCurrent();
+          const existing = ledger?.reservations[reservation.reservationId];
+          if (!ledger || !existing || existing.invocationId !== reservation.invocationId
+            || canonicalJson(ledger.limits) !== canonicalJson(reservation.limits)
+            || canonicalJson(existing.capacity) !== canonicalJson(reservation.capacity)) {
+            throw new AuthorizationPersistenceError("Authorization recovery reservation mismatch", undefined, "recovery");
+          }
+          const next = settleReservation(ledger, settlement, () => this.#now());
+          assertCurrent();
+          writeLedger(file, next);
+          return reservationSnapshot(next, reservation.reservationId, existing);
+        });
+      } finally {
+        await lease.release();
+      }
+    } catch (error) {
+      throw new AuthorizationPersistenceError("Authorization recovery settlement failed", error, "recovery");
     }
   }
 
@@ -237,7 +241,7 @@ function settleReservation(ledger: StoredLedger | undefined, input: Authorizatio
   if (!reservation) throw new AuthorizationPersistenceError("Authorization reservation does not exist");
   if (reservation.state === "released") throw new AuthorizationPersistenceError("Released authorization reservation cannot be settled");
   if (reservation.state === "settled") {
-    if (JSON.stringify(reservation.usage) === JSON.stringify(input.usage)) return ledger;
+    if (canonicalJson(reservation.usage) === canonicalJson(input.usage)) return ledger;
     throw new AuthorizationPersistenceError("Authorization reservation was settled with different usage");
   }
   if ((reservation.capacity.maxTokens !== undefined && input.usage.totalTokens > reservation.capacity.maxTokens)

@@ -230,7 +230,9 @@ must not acquire the native lock themselves. A one-time check without exclusion
 during the lease does not satisfy this contract.
 
 Filesystem or lease-release errors can reject after settlement committed.
-Inspect the persisted invocation before deciding how to recover; a rejection
+Checked settlement failures after validation use `AuthorizationPersistenceError`
+with phase `recovery` and `duplicateInvocationRisk: true`, including a failure
+to release the host lease after commit. Inspect the persisted invocation before deciding how to recover; a rejection
 is not proof of no effect. Recovery across this ledger and another authority
 store is not a shared atomic transaction. Complete it only when both owners
 confirm the same known usage, retaining partial outcomes across interruption.
