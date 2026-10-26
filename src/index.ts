@@ -15,5 +15,6 @@ export type {
   DispatchTerminalOutcome, EvidenceLevel, ExecutionAuthorization, ExecutionBudget, ExecutionCandidate,
   StructuredToolsFidelity, ExecutionPlan, ExecutionPolicy, RuntimeRegistry,
   AuthorizationLedger, AuthorizationRelease, AuthorizationReservation, AuthorizationSettlement,
+  RecoverableAuthorizationLedger, AuthorizationReservationSnapshot, AuthorizationRecoveryAdmission,
 } from "./types.js";
 export const DISPATCH_RECEIPT_SCHEMA_VERSION = 1 as const;

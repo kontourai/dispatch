@@ -18,7 +18,9 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type {
-  AuthorizationLedger,
+  RecoverableAuthorizationLedger,
+  AuthorizationReservationSnapshot,
+  AuthorizationRecoveryAdmission,
   AuthorizationRelease,
   AuthorizationReservation,
   AuthorizationSettlement,
@@ -82,7 +84,7 @@ export interface FileAuthorizationLedgerOptions {
   lockTimeoutMs?: number;
 }
 
-export class FileAuthorizationLedger implements AuthorizationLedger {
+export class FileAuthorizationLedger implements RecoverableAuthorizationLedger {
   readonly #root: string;
   readonly #now: () => Date;
   readonly #lockTimeoutMs: number;
@@ -137,24 +139,52 @@ export class FileAuthorizationLedger implements AuthorizationLedger {
 
   async settle(input: AuthorizationSettlement): Promise<void> {
     validateSettlement(input);
-    await this.#mutate(input.authorizationId, (ledger) => {
-      if (!ledger) throw new AuthorizationPersistenceError("Authorization ledger does not exist");
-      const reservation = ledger.reservations[input.reservationId];
-      if (!reservation) throw new AuthorizationPersistenceError("Authorization reservation does not exist");
-      if (reservation.state === "released") throw new AuthorizationPersistenceError("Released authorization reservation cannot be settled");
-      if (reservation.state === "settled") {
-        if (JSON.stringify(reservation.usage) === JSON.stringify(input.usage)) return ledger;
-        throw new AuthorizationPersistenceError("Authorization reservation was settled with different usage");
-      }
-      if ((reservation.capacity.maxTokens !== undefined && input.usage.totalTokens > reservation.capacity.maxTokens)
-        || (reservation.capacity.maxCostUsd !== undefined && input.usage.costUsd > reservation.capacity.maxCostUsd)) {
-        throw new AuthorizationPersistenceError("Measured usage exceeded its reserved worst-case capacity");
-      }
-      reservation.state = "settled";
-      reservation.usage = { ...input.usage };
-      reservation.settledAt = this.#now().toISOString();
-      return ledger;
-    });
+    await this.#mutate(input.authorizationId, ledger => settleReservation(ledger, input, () => this.#now()));
+  }
+
+  async inspectInvocation(input: Pick<AuthorizationReservation, "authorizationId" | "invocationId">): Promise<AuthorizationReservationSnapshot[]> {
+    const { authorizationId, invocationId } = input;
+    validateId(authorizationId, "authorization id");
+    validateId(invocationId, "invocation id");
+    return this.#withLedger(authorizationId, ledger => ledger
+      ? Object.entries(ledger.reservations).filter(([, value]) => value.invocationId === invocationId)
+        .map(([reservationId, value]) => reservationSnapshot(ledger, reservationId, value))
+      : []);
+  }
+
+  async settleChecked(input: {
+    reservation: AuthorizationReservation;
+    usage: AuthorizationSettlement["usage"];
+    admission: AuthorizationRecoveryAdmission;
+  }): Promise<AuthorizationReservationSnapshot> {
+    const reservation = structuredClone(input.reservation);
+    const usage = structuredClone(input.usage);
+    const admission = input.admission;
+    validateReservation(reservation);
+    const settlement = { authorizationId: reservation.authorizationId, reservationId: reservation.reservationId, usage };
+    validateSettlement(settlement);
+    const lease = await admission.acquire();
+    try {
+      const assertCurrent = () => {
+        if (lease.assertCurrent() !== undefined) throw new AuthorizationPersistenceError("Authorization recovery check must be synchronous", undefined, "recovery");
+      };
+      assertCurrent();
+      return await this.#withLedger(reservation.authorizationId, (ledger, file) => {
+        assertCurrent();
+        const existing = ledger?.reservations[reservation.reservationId];
+        if (!ledger || !existing || existing.invocationId !== reservation.invocationId
+          || canonicalJson(ledger.limits) !== canonicalJson(reservation.limits)
+          || canonicalJson(existing.capacity) !== canonicalJson(reservation.capacity)) {
+          throw new AuthorizationPersistenceError("Authorization recovery reservation mismatch", undefined, "recovery");
+        }
+        const next = settleReservation(ledger, settlement, () => this.#now());
+        assertCurrent();
+        writeLedger(file, next);
+        return reservationSnapshot(next, reservation.reservationId, existing);
+      });
+    } finally {
+      await lease.release();
+    }
   }
 
   async release(input: AuthorizationRelease): Promise<void> {
@@ -176,13 +206,16 @@ export class FileAuthorizationLedger implements AuthorizationLedger {
   }
 
   async #mutate(authorizationId: string, mutation: (ledger: StoredLedger | undefined) => StoredLedger): Promise<void> {
+    await this.#withLedger(authorizationId, (ledger, file) => writeLedger(file, mutation(ledger)));
+  }
+
+  async #withLedger<T>(authorizationId: string, body: (ledger: StoredLedger | undefined, file: string) => T): Promise<T> {
     const digest = createHash("sha256").update(authorizationId).digest("hex");
     const file = join(this.#root, `${digest}.json`);
     const lock = join(this.#root, `${digest}.lock`);
     const release = await acquireLock(lock, this.#lockTimeoutMs);
     try {
-      const next = mutation(readLedger(file, authorizationId));
-      writeLedger(file, next);
+      return body(readLedger(file, authorizationId), file);
     } catch (error) {
       if (error instanceof AuthorizationExhaustedError || error instanceof AuthorizationPersistenceError) throw error;
       throw new AuthorizationPersistenceError(undefined, error);
@@ -190,6 +223,31 @@ export class FileAuthorizationLedger implements AuthorizationLedger {
       release();
     }
   }
+}
+
+function reservationSnapshot(ledger: StoredLedger, reservationId: string, reservation: StoredReservation): AuthorizationReservationSnapshot {
+  return structuredClone({ authorizationId: ledger.authorizationId, reservationId,
+    invocationId: reservation.invocationId, limits: ledger.limits, capacity: reservation.capacity,
+    state: reservation.state, ...(reservation.usage ? { usage: reservation.usage } : {}) });
+}
+
+function settleReservation(ledger: StoredLedger | undefined, input: AuthorizationSettlement, now: () => Date): StoredLedger {
+  if (!ledger) throw new AuthorizationPersistenceError("Authorization ledger does not exist");
+  const reservation = ledger.reservations[input.reservationId];
+  if (!reservation) throw new AuthorizationPersistenceError("Authorization reservation does not exist");
+  if (reservation.state === "released") throw new AuthorizationPersistenceError("Released authorization reservation cannot be settled");
+  if (reservation.state === "settled") {
+    if (JSON.stringify(reservation.usage) === JSON.stringify(input.usage)) return ledger;
+    throw new AuthorizationPersistenceError("Authorization reservation was settled with different usage");
+  }
+  if ((reservation.capacity.maxTokens !== undefined && input.usage.totalTokens > reservation.capacity.maxTokens)
+    || (reservation.capacity.maxCostUsd !== undefined && input.usage.costUsd > reservation.capacity.maxCostUsd)) {
+    throw new AuthorizationPersistenceError("Measured usage exceeded its reserved worst-case capacity");
+  }
+  reservation.state = "settled";
+  reservation.usage = { ...input.usage };
+  reservation.settledAt = now().toISOString();
+  return ledger;
 }
 
 function assertCapacity(ledger: StoredLedger, requested: AuthorizationReservation["capacity"]): void {

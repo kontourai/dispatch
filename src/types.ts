@@ -176,3 +176,25 @@ export interface AuthorizationLedger {
   settle(settlement: AuthorizationSettlement): Promise<void>;
   release(release: AuthorizationRelease): Promise<void>;
 }
+
+export interface AuthorizationReservationSnapshot extends AuthorizationReservation {
+  state: "reserved" | "settled" | "released";
+  usage?: AuthorizationSettlement["usage"];
+}
+
+/** Host-owned exclusion of relevant source/authority changes through publication. */
+export interface AuthorizationRecoveryAdmission {
+  acquire(): Promise<{
+    assertCurrent(): undefined;
+    release(): Promise<void> | void;
+  }>;
+}
+
+export interface RecoverableAuthorizationLedger extends AuthorizationLedger {
+  inspectInvocation(input: Pick<AuthorizationReservation, "authorizationId" | "invocationId">): Promise<AuthorizationReservationSnapshot[]>;
+  settleChecked(input: {
+    reservation: AuthorizationReservation;
+    usage: AuthorizationSettlement["usage"];
+    admission: AuthorizationRecoveryAdmission;
+  }): Promise<AuthorizationReservationSnapshot>;
+}

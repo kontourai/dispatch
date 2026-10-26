@@ -196,3 +196,41 @@ checked only when a new reservation is added. Any ledger error raised while
 settling a successful attempt, including a lock timeout, a malformed ledger,
 or the size bound, reaches the caller as `Provider invocation completed but
 authorization settlement failed` with phase `settle`.
+
+## Inspecting and settling an existing invocation
+
+`FileAuthorizationLedger` also implements `RecoverableAuthorizationLedger`.
+`inspectInvocation({authorizationId, invocationId})` reads the actual persisted
+reservations under the native ledger lock. It returns detached snapshots with
+reservation identity, original limits and capacity, state, and measured usage
+when settled. Missing invocations return an empty array; inspection does not
+create a ledger record or reserve capacity. The host must authenticate access
+to its private ledger. Inspection alone grants no execution or settlement
+permission.
+
+`settleChecked({reservation, usage, admission})` reconciles an existing
+reservation after a lost settlement. Supply the complete original reservation
+and known usage. Dispatch captures those inputs before awaiting admission,
+checks their exact identity/limits/capacity against disk under its lock, and
+uses the ordinary settlement rules. Identical settled usage is accepted;
+missing, released, conflicting, or above-capacity settlement is refused. It
+never invokes a provider, creates another reservation, releases capacity,
+raises an old limit, or clamps usage. Unknown usage remains held. Above-capacity
+usage remains unresolved under this contract; callers must not report it as a
+completed settlement.
+
+The host supplies `admission.acquire()`, returning a lease with synchronous
+`assertCurrent()` and awaited `release()`. The lease must authenticate the
+original evidence and current operator authority, and exclude relevant
+source/revocation changes until release completes, including other processes
+when they can make those changes. Dispatch acquires that lease before the
+native ledger lock, checks it after taking the lock and immediately before
+publication, and releases it after dropping the native lock. Lease methods
+must not acquire the native lock themselves. A one-time check without exclusion
+during the lease does not satisfy this contract.
+
+Filesystem or lease-release errors can reject after settlement committed.
+Inspect the persisted invocation before deciding how to recover; a rejection
+is not proof of no effect. Recovery across this ledger and another authority
+store is not a shared atomic transaction. Complete it only when both owners
+confirm the same known usage, retaining partial outcomes across interruption.
