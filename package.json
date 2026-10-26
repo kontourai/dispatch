@@ -52,17 +52,17 @@
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.14",
-    "@kontourai/bearing": "^0.2.0",
+    "@kontourai/bearing": "^0.4.0",
     "@kontourai/datum": "^0.8.0",
-    "@kontourai/flow-agents": "5.5.0",
-    "@kontourai/veritas": "1.11.2",
+    "@kontourai/flow-agents": "9.3.0",
+    "@kontourai/veritas": "1.11.4",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^26.1.2",
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "@ai-sdk/provider": ">=3.0.0",
-    "@kontourai/bearing": "^0.2.0",
+    "@kontourai/bearing": "^0.4.0",
     "@kontourai/datum": "^0.7.0 || ^0.8.0"
   },
   "peerDependenciesMeta": {
