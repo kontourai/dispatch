@@ -353,3 +353,15 @@ standard output: `{ "schemaVersion": "dispatch.cli.result/v1", "result"?, "recei
 | `0` | The outcome is `succeeded`. |
 | `1` | A usage error, invalid JSON, an unreadable or oversized file, an invalid plan, or another error. The message is written to standard error with the prefix `dispatch:`. |
 | `2` | A valid run ended with any other outcome. |
+
+### RecoverableAuthorizationLedger
+
+`FileAuthorizationLedger` implements the existing `AuthorizationLedger` plus:
+
+- `inspectInvocation({authorizationId, invocationId})` → detached
+  `AuthorizationReservationSnapshot[]` for existing reservations only.
+- `settleChecked({reservation, usage, admission})` → the exact settled
+  `AuthorizationReservationSnapshot`, under native locking and a host lease.
+
+See [inspecting and settling an existing invocation](guides/durable-authorization.md#inspecting-and-settling-an-existing-invocation)
+for host authority obligations, recovery ordering, and unresolved usage limits.
