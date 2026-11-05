@@ -54,8 +54,8 @@
     "@ai-sdk/provider": "^4.0.33",
     "@kontourai/bearing": "^0.4.0",
     "@kontourai/datum": "^0.8.0",
-    "@kontourai/flow-agents": "9.3.0",
-    "@kontourai/veritas": "1.11.4",
+    "@kontourai/flow-agents": "9.11.0",
+    "@kontourai/veritas": "1.12.1",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^26.1.2",
     "typescript": "^7.0.2"
