@@ -41,14 +41,26 @@ const outcome = await dispatch({
   candidates: [{
     id: "primary",
     runtimeId: runtime.id,
-    evidence: { level: "declared", capabilities: ["tools"] },
+    evidence: {
+      level: "declared",
+      capabilities: ["structured-tools"],
+      structuredToolsFidelity: "native",
+    },
   }],
   budget: { maxAttempts: 1, maxTotalTokens: 2_000 },
-  policy: { requiredCapabilities: ["tools"], minimumEvidence: "declared" },
+  policy: { requiredCapabilities: ["structured-tools"], minimumEvidence: "declared" },
 }, { get: (id) => id === runtime.id ? runtime : undefined });
 
 console.log(outcome.receipt);
 ```
+
+When `requiredCapabilities` contains `structured-tools`, routing defaults to
+native structured-output fidelity. Candidate evidence must declare
+`structuredToolsFidelity: "native"`; missing or contradictory fidelity fails
+closed, and a plan with no eligible candidate ends with outcome
+`no-eligible-candidates` and no attempts. A host may explicitly set
+`minimumStructuredToolsFidelity: "prompted"` to admit a runtime that produces
+schema-shaped output through prompting rather than native enforcement. Attempt receipts record the selected fidelity.
 
 Receipts include digests and measured outcomes, not prompt content or credential
 values. Budget overruns discovered from measured usage are terminal and suppress
@@ -123,13 +135,6 @@ Authorization persistence errors are typed
 provider may already have completed or an existing reservation makes replay
 ambiguous. Capacity exhaustion remains a content-free
 `budget-exceeded` Dispatch receipt with authorization outcome `exhausted`.
-
-When `requiredCapabilities` contains `structured-tools`, routing defaults to
-native structured-output fidelity. Candidate evidence must declare
-`structuredToolsFidelity: "native"`; missing or contradictory fidelity fails
-closed. A host may explicitly set `minimumStructuredToolsFidelity: "prompted"`
-to admit a runtime that produces schema-shaped output through prompting rather
-than native enforcement. Attempt receipts record the selected fidelity.
 
 ## Optional Datum binding
 

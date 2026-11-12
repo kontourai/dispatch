@@ -39,6 +39,38 @@ jobs:
       - run: npm run veritas:readiness -- --run-id "ci-${{ github.run_id }}-${{ matrix.node-version }}" --force
         working-directory: dispatch
 
+  # Every published Bearing version inside the `@kontourai/bearing` peer range,
+  # installed by a fresh npm consumer beside Datum. Add a leg when the range
+  # grows. 0.3.0 was tagged but never published, so it has no leg.
+  bearing-compat:
+    name: Bearing ${{ matrix.bearing }} compatibility
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bearing: ['0.2.0', '0.4.0']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: dispatch
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: dispatch/package.json
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: dispatch/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: dispatch
+      - run: npm run build
+        working-directory: dispatch
+      - run: node scripts/bearing-compat.mjs "${{ matrix.bearing }}"
+        working-directory: dispatch
+
   # The publish job's environment, exercised on every pull request.
   #
   # `npm publish` is the one step of the release path that no ordinary check
