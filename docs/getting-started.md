@@ -28,7 +28,7 @@ Install them only if you import the matching entrypoint:
 | Entrypoint | Peer dependency |
 | --- | --- |
 | `@kontourai/dispatch/datum` | `@kontourai/datum` `^0.7.0 \|\| ^0.8.0` |
-| `@kontourai/dispatch/bearing` | `@kontourai/bearing` `^0.2.0` |
+| `@kontourai/dispatch/bearing` | `@kontourai/bearing` `^0.2.0 \|\| ^0.4.0` |
 | `@kontourai/dispatch/ai-sdk` | `@ai-sdk/provider` `>=3.0.0` |
 
 ## Run a plan without credentials
@@ -127,10 +127,14 @@ const outcome = await dispatch({
   candidates: [{
     id: "primary",
     runtimeId: runtime.id,
-    evidence: { level: "declared", capabilities: ["tools"] },
+    evidence: {
+      level: "declared",
+      capabilities: ["structured-tools"],
+      structuredToolsFidelity: "native",
+    },
   }],
   budget: { maxAttempts: 1, maxTotalTokens: 2_000 },
-  policy: { requiredCapabilities: ["tools"], minimumEvidence: "declared" },
+  policy: { requiredCapabilities: ["structured-tools"], minimumEvidence: "declared" },
 }, { get: (id) => id === runtime.id ? runtime : undefined });
 
 if ("result" in outcome) {
@@ -138,6 +142,11 @@ if ("result" in outcome) {
 }
 console.log(outcome.receipt);
 ```
+
+Requiring `structured-tools` admits only a candidate whose evidence declares
+`structuredToolsFidelity`, and by default only `"native"`. Without that field
+the run ends with outcome `no-eligible-candidates` and no attempts.
+[Concepts](concepts.md) lists every eligibility rule.
 
 `dispatch()` resolves to a result and a receipt when the outcome is
 `succeeded`, and to a receipt alone for every other outcome. It does not throw
