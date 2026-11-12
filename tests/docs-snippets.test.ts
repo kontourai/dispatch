@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { describe, it } from "node:test";
 
 // Runs the published quickstart sketches as written. The only substitution is
@@ -8,17 +10,24 @@ import { describe, it } from "node:test";
 // test swaps in a fake factory so the plan's routing is what gets exercised.
 // The module is written next to this compiled test, inside the package, so the
 // sketch's own `@kontourai/dispatch` import resolves through the package's
-// self-reference to the built entrypoint.
+// self-reference to the built entrypoint and its declarations.
+//
+// Each sketch is typechecked before it runs. The engine ignores unknown plan
+// keys, so a misspelled field (say `requiredCapability`) would still dispatch
+// successfully; only the object-literal excess-property check catches it.
 
 const relayImport = 'import { createAnthropicRuntime } from "@kontourai/relay/anthropic";';
-const fakeFactory = `const createAnthropicRuntime = (config) => ({
+const fakeFactory = `import type { ModelRuntime } from "@kontourai/relay";
+const createAnthropicRuntime = (config: { model: string; apiKey?: string | undefined }): ModelRuntime => ({
   id: "readme-fake",
   capabilities: () => ({ structuredTools: true, streaming: false, abort: true, usage: true }),
   async invoke() {
-    globalThis.__dispatchSnippetInvocations = (globalThis.__dispatchSnippetInvocations ?? 0) + 1;
+    const counter = globalThis as { __dispatchSnippetInvocations?: number };
+    counter.__dispatchSnippetInvocations = (counter.__dispatchSnippetInvocations ?? 0) + 1;
     return { provider: "fixture", model: config.model, outputText: "ok", toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 }, latencyMs: 0 };
   },
 });`;
+const tsc = fileURLToPath(new URL("../../node_modules/typescript/bin/tsc", import.meta.url));
 
 function sketchUnder(markdown: string, heading: string): string {
   const start = markdown.indexOf(`\n${heading}\n`);
@@ -37,14 +46,22 @@ async function runSketch(document: string, heading: string, name: string) {
   assert.equal(sketch.split(relayImport).length, 2, `${document} sketch must import createAnthropicRuntime exactly once`);
   assert.match(sketch, /^import \{ dispatch \} from "@kontourai\/dispatch";$/mu);
   const source = `${sketch.replace(relayImport, fakeFactory)}\nexport { outcome };\n`;
-  const file = fileURLToPath(new URL(`./.snippet-${name}-${process.pid}.mjs`, import.meta.url));
+  const file = fileURLToPath(new URL(`./.snippet-${name}-${process.pid}.mts`, import.meta.url));
   await writeFile(file, source);
+  try {
+    await promisify(execFile)(process.execPath, [tsc, "--ignoreConfig", "--noEmit", "--strict", "--target", "es2022", "--module", "nodenext",
+      "--moduleResolution", "nodenext", "--types", "node", "--skipLibCheck", file]);
+  } catch (error) {
+    await rm(file, { force: true });
+    const output = (error as { stdout?: string }).stdout ?? String(error);
+    assert.fail(`${document} sketch does not typecheck against the public types:\n${output}`);
+  }
   const log = console.log;
   const globals = globalThis as { __dispatchSnippetInvocations?: number };
   globals.__dispatchSnippetInvocations = 0;
   console.log = () => {};
   try {
-    const module = await import(file) as { outcome: { receipt: { outcome: string; attempts: readonly unknown[] } } };
+    const module = await import(file) as { outcome: { receipt: { outcome: string; attempts: readonly { structuredToolsFidelity?: string }[] } } };
     return { receipt: module.outcome.receipt, invocations: globals.__dispatchSnippetInvocations };
   } finally {
     console.log = log;
@@ -57,6 +74,7 @@ describe("documentation sketches", () => {
     const { receipt, invocations } = await runSketch("README.md", "## SDK sketch", "readme");
     assert.equal(receipt.outcome, "succeeded");
     assert.equal(receipt.attempts.length, 1);
+    assert.equal(receipt.attempts[0]?.structuredToolsFidelity, "native");
     assert.equal(invocations, 1);
   });
 
@@ -64,6 +82,7 @@ describe("documentation sketches", () => {
     const { receipt, invocations } = await runSketch("docs/getting-started.md", "## Call Dispatch from code", "getting-started");
     assert.equal(receipt.outcome, "succeeded");
     assert.equal(receipt.attempts.length, 1);
+    assert.equal(receipt.attempts[0]?.structuredToolsFidelity, "native");
     assert.equal(invocations, 1);
   });
 });

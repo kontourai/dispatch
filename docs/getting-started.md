@@ -137,7 +137,7 @@ const outcome = await dispatch({
   policy: { requiredCapabilities: ["structured-tools"], minimumEvidence: "declared" },
 }, { get: (id) => id === runtime.id ? runtime : undefined });
 
-if ("result" in outcome) {
+if (outcome.result) {
   console.log(outcome.result.outputText);
 }
 console.log(outcome.receipt);
