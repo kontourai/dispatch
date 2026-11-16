@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,15 +26,48 @@ import {
 const capabilities: ModelRuntimeCapabilities = { structuredTools: true, streaming: false, abort: true, usage: true };
 const result = { provider: "fixture", model: "m", outputText: "ok", toolCalls: [], usage: { totalTokens: 2 }, latencyMs: 0 };
 
+interface InstalledPackage {
+  version?: string;
+  path?: string;
+  dependencies?: Record<string, InstalledPackage>;
+  devDependencies?: Record<string, InstalledPackage>;
+  optionalDependencies?: Record<string, InstalledPackage>;
+}
+
+function assertSingleRelayContract(
+  installed: readonly InstalledPackage[],
+  canonicalPath: (path: string) => string,
+): void {
+  assert.equal(installed.length, 1, "expected one Dispatch installation");
+  assert.equal(installed[0]?.dependencies?.["@kontourai/relay"]?.version, "0.8.0");
+  const identities = new Set<string>();
+  function visit(node: InstalledPackage): void {
+    for (const branch of [node.dependencies, node.devDependencies, node.optionalDependencies]) {
+      for (const [name, dependency] of Object.entries(branch ?? {})) {
+        if (name === "@kontourai/relay") {
+          assert.equal(dependency.version, "0.8.0", "every installed Relay must be 0.8.0");
+          assert.equal(typeof dependency.path, "string", "Relay must have an installed path");
+          assert.ok(dependency.path, "Relay must have a non-empty installed path");
+          identities.add(canonicalPath(dependency.path));
+        }
+        visit(dependency);
+      }
+    }
+  }
+  for (const root of installed) visit(root);
+  assert.equal(identities.size, 1, "every installed Relay must resolve to one physical package");
+}
+
 describe("Dispatch Relay runtime", () => {
   it("installs one Relay contract compatible with Dispatch runtime fidelity", () => {
-    const installed = JSON.parse(execFileSync("npm", ["ls", "@kontourai/relay", "--json"], {
+    // Use the installer named in packageManager. npm ls interprets a published
+    // pnpm peer link using Traverse's devDependency instead of its peer range.
+    // A failed pnpm inspection still fails this test; no status is ignored.
+    const installed = JSON.parse(execFileSync("pnpm", ["list", "@kontourai/relay", "--depth", "Infinity", "--json"], {
       cwd: process.cwd(),
       encoding: "utf8",
-    })) as { dependencies?: Record<string, { version?: string; dependencies?: Record<string, unknown> }> };
-    const direct = installed.dependencies?.["@kontourai/relay"];
-    assert.equal(direct?.version, "0.7.1");
-    assert.equal(direct?.dependencies?.["@kontourai/relay"], undefined);
+    })) as InstalledPackage[];
+    assertSingleRelayContract(installed, (path) => realpathSync(path));
     const capabilities: ModelRuntimeCapabilities = {
       structuredTools: true,
       structuredToolsFidelity: "native",
@@ -44,6 +78,31 @@ describe("Dispatch Relay runtime", () => {
     };
     assert.equal(capabilities.structuredToolsFidelity, "native");
   });
+  it("rejects old Relay versions and separate physical identities anywhere in the installation", () => {
+    const relay = { version: "0.8.0", path: "/store/relay-0.8.0" };
+    const identity = (path: string) => path;
+    const closure = (nested: InstalledPackage): InstalledPackage[] => [{
+      dependencies: { "@kontourai/relay": relay },
+      devDependencies: { tooling: { optionalDependencies: { adapter: { dependencies: { "@kontourai/relay": nested } } } } },
+    }];
+    assert.doesNotThrow(() => assertSingleRelayContract(closure(relay), identity));
+    assert.throws(
+      () => assertSingleRelayContract(closure({ version: "0.7.1", path: "/store/relay-0.7.1" }), identity),
+      /every installed Relay must be 0\.8\.0/,
+    );
+    assert.throws(
+      () => assertSingleRelayContract(closure({ version: "0.9.0", path: "/store/relay-0.9.0" }), identity),
+      /every installed Relay must be 0\.8\.0/,
+    );
+    assert.throws(
+      () => assertSingleRelayContract(closure({ ...relay, path: "/other-store/relay-0.8.0" }), identity),
+      /one physical package/,
+    );
+    assert.throws(() => assertSingleRelayContract(closure({ version: "0.8.0" }), identity), /installed path/);
+    assert.throws(() => assertSingleRelayContract([], identity), /one Dispatch installation/);
+    assert.throws(() => assertSingleRelayContract([{}], identity));
+  });
+
   it("routes a Relay invocation and emits the receipt to the host", async () => {
     let receipt: DispatchReceipt | undefined;
     const runtime = createDispatchRuntime({

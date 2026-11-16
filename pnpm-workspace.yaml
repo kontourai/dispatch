@@ -1,3 +1,10 @@
+# Flow Agents 11.0.0 embeds published Dispatch 0.8.1, whose exact Relay
+# dependency is 0.7.1. Keep its runtime identity aligned with this checkout's
+# Relay 0.8.0. Remove after Flow Agents consumes an aligned Dispatch release.
+# This changes only that published Dispatch edge, not other Relay consumers.
+overrides:
+  '@kontourai/dispatch@0.8.1>@kontourai/relay': 0.8.0
+
 # Dependency install scripts are blocked by default (pnpm >= 10). Only the
 # packages listed here, at exactly these versions, may run a build script.
 # esbuild (via @kontourai/flow-agents): its postinstall selects the platform
