@@ -264,3 +264,23 @@ Hosts that can tolerate delayed receipt persistence may set
 the original terminal Dispatch failure—without allowing receipt loss to become
 invisible. Callback error text is never copied into the portable error or
 receipt.
+
+## Dependency maintenance
+
+Install with the pinned pnpm version and commit its lockfile. The Relay
+installation test checks the complete dependency and development dependency
+graph, including optional dependencies: every resolved Relay must be 0.8.0
+and resolve to the same physical package.
+
+Flow Agents 11.0.0 includes published Dispatch 0.8.1, which pins Relay 0.7.1.
+The scoped override in `pnpm-workspace.yaml` moves only that Dispatch edge to
+Relay 0.8.0. Remove it when Flow Agents consumes a Dispatch release aligned
+with Relay 0.8.0. The test uses pnpm's resolved graph because `npm ls` treats
+Traverse 5.0.3's development Relay range (`^0.7.0`) as a requirement on its
+installed peer, whose published range (`>=0.1.0 <1`) accepts 0.8.0.
+
+Relay 0.8.0 retains the invocation error, capability, usage, retry and abort
+fields consumed by Dispatch. Its process runtimes also add execution metadata
+and environment, isolation and process-group options. The dependency graph
+check does not qualify process termination, native harness behavior or
+provider execution; those need their own runtime evidence.
