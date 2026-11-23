@@ -25,8 +25,8 @@ importers:
         specifier: ^0.8.0
         version: 0.8.1
       '@kontourai/flow-agents':
-        specifier: 11.0.0
-        version: 11.0.0(@ai-sdk/provider@4.0.38)(@kontourai/bearing@0.4.0)(typescript@7.0.2)(zod@4.6.7)
+        specifier: 11.2.0
+        version: 11.2.0(@ai-sdk/provider@4.0.38)(@kontourai/bearing@0.4.0)(typescript@7.0.2)(zod@4.6.7)
       '@kontourai/veritas':
         specifier: 1.12.2
         version: 1.12.2(@kontourai/survey@8.4.0(typescript@7.0.2))(zod@4.6.7)
@@ -265,8 +265,8 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
-  '@kontourai/flow-agents@11.0.0':
-    resolution: {integrity: sha512-gY3mh0wpICJs9KhaIxsK5mF4LCNj5VG2cgaAFBenGRkfjHCL5AGqNxmy0EGrRrK8LYAhKCB86/RR+ne+1ftt9g==}
+  '@kontourai/flow-agents@11.2.0':
+    resolution: {integrity: sha512-RuNFCqGVMF8+51sGriPKFqDCFnKlbGevVMNAdFHgbjT5AJry3woM4J9Dh1uVfZSUqSJaJy00dIN4zkWm9u1mTw==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -1371,7 +1371,7 @@ snapshots:
       commander: 15.1.0
       zod: 4.6.7
 
-  '@kontourai/flow-agents@11.0.0(@ai-sdk/provider@4.0.38)(@kontourai/bearing@0.4.0)(typescript@7.0.2)(zod@4.6.7)':
+  '@kontourai/flow-agents@11.2.0(@ai-sdk/provider@4.0.38)(@kontourai/bearing@0.4.0)(typescript@7.0.2)(zod@4.6.7)':
     dependencies:
       '@kontourai/conduit': 0.8.0
       '@kontourai/datum': 0.8.1
@@ -1507,7 +1507,7 @@ snapshots:
 
   '@modelcontextprotocol/core@2.4.0':
     dependencies:
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@modelcontextprotocol/sdk@1.32.2(zod@4.6.7)':
     dependencies:
@@ -1540,7 +1540,7 @@ snapshots:
   '@modelcontextprotocol/server@2.4.0':
     dependencies:
       '@modelcontextprotocol/core': 2.4.0
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@npmcli/agent@5.0.2':
     dependencies:
@@ -2427,6 +2427,7 @@ snapshots:
     dependencies:
       zod: 4.6.7
 
-  zod@4.4.3: {}
+  zod@4.4.3:
+    optional: true
 
   zod@4.6.7: {}
